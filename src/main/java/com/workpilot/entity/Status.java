@@ -1,0 +1,12 @@
+package com.workpilot.entity;
+
+public enum Status {
+    EN_COURS,
+    TERMINE,
+    EN_ATTENTE,
+    ANNULE,
+    EN_ATTENTE_DEVIS,
+    EN_ATTENTE_VALIDATION,
+    EN_ATTENTE_VALIDATION_DEVIS,
+    EN_ATTENTE_VALIDATION_AFFECTATION;
+}
