@@ -5,9 +5,9 @@ import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.element.Cell;
-import com.workpilot.entity.Devis;
-import com.workpilot.entity.FinancialDetail;
-import com.workpilot.entity.InvoicingDetail;
+import com.workpilot.entity.devis.Devis;
+import com.workpilot.entity.devis.FinancialDetail;
+import com.workpilot.entity.devis.InvoicingDetail;
 import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.time.format.DateTimeFormatter;
@@ -38,8 +38,6 @@ public class PdfService {
             document.add(new Paragraph("Projet: " + (devis.getProject() != null ? devis.getProject().getName() : "Non spécifié"))
                     .setFontSize(12));
 
-            document.add(new Paragraph("Montant Total: " + devis.getTotalCost() + " €")
-                    .setFontSize(12).setBold());
 
             document.add(new Paragraph("Statut: " + (devis.getStatus() != null ? devis.getStatus() : "Non spécifié"))
                     .setFontSize(12));
@@ -76,7 +74,7 @@ public class PdfService {
                 invoiceTable.addCell(new Cell().add(new Paragraph(invoice.getDescription() != null ? invoice.getDescription() : "-")));
                 invoiceTable.addCell(new Cell().add(new Paragraph(invoicingDate)));
                 invoiceTable.addCell(new Cell().add(new Paragraph(String.valueOf(invoice.getAmount()))));
-                invoiceTable.addCell(new Cell().add(new Paragraph(invoice.getStatus() != null ? invoice.getStatus() : "-")));
+
             }
 
             document.add(invoiceTable);

@@ -1,17 +1,13 @@
 package com.workpilot.controller;
 
-import com.workpilot.entity.Team;
-import com.workpilot.entity.TeamMember;
-import com.workpilot.exception.DevisNotFoundException;
-import com.workpilot.repository.TeamRepository;
-import com.workpilot.service.TeamService;
+import com.workpilot.dto.TeamDTO;
+import com.workpilot.dto.TeamMemberDTO;
+import com.workpilot.service.GestionProject.team.TeamService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/teams")
@@ -20,59 +16,72 @@ public class TeamController {
 
     @Autowired
     private TeamService teamService;
-    @Autowired
-    private TeamRepository teamRepository;
 
-    public TeamController(TeamService teamService) {
-        this.teamService = teamService;
+    // Récupérer toutes les équipes
+    @GetMapping
+    public List<TeamDTO> getAllTeams() {
+        return teamService.getAllTeams();
     }
 
-    @GetMapping(produces = "application/json")
-    public ResponseEntity<List<Team>> getAllTeam() {
-       return ResponseEntity.ok(teamService.getAllTeam());
-    }
-
+    // Récupérer une équipe par son ID
     @GetMapping("/{id}")
-    public ResponseEntity<Team> getTeamById(@PathVariable Long id) {
-        Team team = teamService.getTeamById(id);
-        if (team != null) {
-            return new ResponseEntity<>(team, HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+    public TeamDTO getTeamById(@PathVariable Long id) {
+        return teamService.getTeamById(id);
     }
 
-
+    // Créer une nouvelle équipe
     @PostMapping
-    public ResponseEntity<Team> createTeam(@RequestBody Team team) {
-        Team savedTeam = teamService.saveTeam(team);
-        return ResponseEntity.ok(savedTeam);
+    public TeamDTO createTeam(@RequestBody TeamDTO teamDTO) {
+        return teamService.createTeam(teamDTO);
     }
 
+    // Mettre à jour une équipe existante
     @PutMapping("/{id}")
-    public ResponseEntity<Team> updateTeam(@PathVariable Long id, @RequestBody Team team) {
-        Team updatedTeam = teamService.updateTeam(id, team);
-        return ResponseEntity.ok(updatedTeam);
+    public TeamDTO updateTeam(@PathVariable Long id, @RequestBody TeamDTO teamDTO) {
+        return teamService.updateTeam(id, teamDTO);
     }
 
-
+    // Supprimer une équipe
     @DeleteMapping("/{id}")
-    public String deleteTeam(@PathVariable("id") Long id) {
-        teamService.deleteTeam(id);
-        return "Deleted Successfully";
+    public ResponseEntity<?> deleteTeam(@PathVariable Long id) {
+        teamService.deleteTeam(id); // suppression définitive
+        return ResponseEntity.ok("Team supprimée");
     }
 
-/*    @GetMapping("/{teamId}/members")
-    public ResponseEntity<List<TeamMember>> getMembersByTeam(@PathVariable Long teamId) {
-        List<TeamMember> members = teamService.getMembersByTeam(teamId);
-        return ResponseEntity.ok(members);
-    }*/
 
-    @PutMapping("/assigner/{TeamMemberId}/{TeamId}")
-    public ResponseEntity<String> assignerTeamMemberTeam(@PathVariable Long teamMemberId, @PathVariable Long teamId) {
-        teamService.assignerTeamMemberTeam(teamMemberId, teamId);
-        return ResponseEntity.ok("member assignée au team");
+    // Ajouter un membre à une équipe
+    @PutMapping("/{teamId}/add-member/{memberId}")
+    public ResponseEntity<Void> addMemberToTeam(@PathVariable Long teamId, @PathVariable Long memberId) {
+        teamService.addMemberToTeam(teamId, memberId);
+        return ResponseEntity.ok().build();
     }
+
+
+    // Associer une équipe à un projet
+    @PostMapping("/{teamId}/add-project/{projectId}")
+    public TeamDTO addProjectToTeam(@PathVariable Long teamId, @PathVariable Long projectId) {
+        return teamService.addProjectToTeam(teamId, projectId);
+    }
+
+    // Retirer un membre d'une équipe
+    @DeleteMapping("/{teamId}/remove-member/{memberId}")
+    public ResponseEntity<Void> removeMemberFromTeam(
+            @PathVariable Long teamId,
+            @PathVariable Long memberId) {
+        teamService.removeMemberFromTeam(teamId, memberId);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{teamId}/members")
+    public List<TeamMemberDTO> getMembersOfTeam(@PathVariable Long teamId) {
+        return teamService.getMembersOfTeam(teamId);
+    }
+
+    @GetMapping("/{teamId}/available-members")
+    public List<TeamMemberDTO> getAvailableMembers(@PathVariable Long teamId) {
+        return teamService.getAvailableMembers(teamId);
+    }
+
 
 
 }

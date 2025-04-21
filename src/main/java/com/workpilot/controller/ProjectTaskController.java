@@ -1,52 +1,60 @@
 package com.workpilot.controller;
 
-import com.workpilot.entity.ProjectTask;
-import com.workpilot.service.ProjectTaskService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.workpilot.dto.ProjectTaskDTO;
+import com.workpilot.service.GestionProject.tache.ProjectTaskServiceImpl;
+import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/tasks")
-@CrossOrigin(origins = "*")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200")
 public class ProjectTaskController {
 
-    @Autowired
-    private ProjectTaskService projectTaskService;
+    private final ProjectTaskServiceImpl taskService;
 
-    // 🔹 Obtenir toutes les tâches
     @GetMapping
-    public ResponseEntity<List<ProjectTask>> getAllTasks() {
-        return ResponseEntity.ok(projectTaskService.getAllTasks());
+    public ResponseEntity<List<ProjectTaskDTO>> getAllTasks() {
+        return ResponseEntity.ok(taskService.getAllTasks());
     }
 
-    // 🔹 Obtenir une tâche par ID
     @GetMapping("/{id}")
-    public ResponseEntity<ProjectTask> getTaskById(@PathVariable Long id) {
-        Optional<ProjectTask> task = projectTaskService.getTaskById(id);
-        return task.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    public ResponseEntity<ProjectTaskDTO> getTaskById(@PathVariable Long id) {
+        return ResponseEntity.ok(taskService.getTacheById(id));
     }
 
-    // 🔹 Créer une nouvelle tâche
-    @PostMapping
-    public ResponseEntity<ProjectTask> createTask(@RequestBody ProjectTask task) {
-        return ResponseEntity.ok(projectTaskService.createTask(task));
+    @PostMapping("/project/{projectId}")
+    public ResponseEntity<ProjectTaskDTO> createTaskForProject(
+            @PathVariable Long projectId,
+            @RequestBody ProjectTaskDTO taskDTO) {
+        taskDTO.setProjectId(projectId);
+        return ResponseEntity.ok(taskService.createTache(taskDTO));
     }
 
-    // 🔹 Mettre à jour une tâche existante
     @PutMapping("/{id}")
-    public ResponseEntity<ProjectTask> updateTask(@PathVariable Long id, @RequestBody ProjectTask updatedTask) {
-        ProjectTask task = projectTaskService.updateTask(id, updatedTask);
-        return ResponseEntity.ok(task);
+    public ResponseEntity<ProjectTaskDTO> updateTask(@PathVariable Long id, @RequestBody ProjectTaskDTO taskDTO) {
+        return ResponseEntity.ok(taskService.updateTache(id, taskDTO));
     }
 
-    // 🔹 Supprimer une tâche
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTask(@PathVariable Long id) {
-        projectTaskService.deleteTask(id);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> deleteTask(@PathVariable Long id) {
+        try {
+            taskService.deleteTache(id);
+            return ResponseEntity.ok("Tâche supprimée avec succès");
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Impossible de supprimer la tâche : elle est liée à d'autres entités.");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Erreur lors de la suppression de la tâche.");
+        }
+    }
+
+    @GetMapping("/project/{projectId}")
+    public ResponseEntity<List<ProjectTaskDTO>> getTasksByProject(@PathVariable Long projectId) {
+        return ResponseEntity.ok(taskService.getTachesByProject(projectId));
     }
 }

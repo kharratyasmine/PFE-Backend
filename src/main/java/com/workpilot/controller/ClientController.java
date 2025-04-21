@@ -1,70 +1,87 @@
 package com.workpilot.controller;
 
-import com.workpilot.entity.Client;
-import com.workpilot.entity.Project;
-import com.workpilot.service.ClientService;
+import com.workpilot.dto.ClientDTO;
+import com.workpilot.dto.ProjectDTO;
+import com.workpilot.entity.ressources.Client;
+import com.workpilot.service.GestionProject.client.ClientService;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
-@CrossOrigin(origins = "http://localhost:4200")
+
 @RestController
 @RequestMapping("/clients")
+@CrossOrigin(origins = "http://localhost:4200")
 public class ClientController {
 
     @Autowired
     private ClientService clientService;
 
-    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<Client>> getAllClients() {
-        List<Client> clients = clientService.getAllClients();
-        return ResponseEntity.ok().body(clients);
+    // Récupérer tous les clients
+    @GetMapping
+    public ResponseEntity<List<ClientDTO>> getAllClients() {
+        List<ClientDTO> clientDTOs = clientService.getAllClients();
+        return ResponseEntity.ok(clientDTOs); // ✅ Renvoie une liste propre
     }
+
+    // Création client avec DTO
     @PostMapping
-    public ResponseEntity<Client> createClient(@RequestBody Client client) {
-        System.out.println("📥 Requête reçue pour ajout : " + client);
-        Client savedClient = clientService.saveClient(client);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedClient);
-    }
-
-
-    @PutMapping("/{id}")
-    public ResponseEntity<Client> updateClient(@PathVariable Long id, @RequestBody Client client) {
-        System.out.println("📥 Données reçues pour mise à jour : " + client);
-
-        Optional<Client> existingClient = Optional.ofNullable(clientService.getClientById(id));
-        if (existingClient.isEmpty()) {
-            return ResponseEntity.notFound().build();
+    public ResponseEntity<?> createClient(@Valid @RequestBody ClientDTO clientDTO) {
+        try {
+            Client savedClient = clientService.saveClient(clientDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(savedClient);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Erreur lors de l'ajout : " + e.getMessage());
         }
-
-        client.setId(id);
-        Client updatedClient = clientService.saveClient(client);
-        return ResponseEntity.ok(updatedClient);
     }
 
 
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Client> getClientById(@PathVariable Long id) {
-        return ResponseEntity.ok(clientService.getClientById(id));
+    // Mise à jour client avec DTO
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateClient(@PathVariable Long id, @Valid @RequestBody ClientDTO clientDTO) {
+        try {
+            Client updatedClient = clientService.updateClient(id, clientDTO);
+            return ResponseEntity.ok(updatedClient); // ✅ Retourne le client mis à jour
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage()); // ✅ Retourne une erreur 404 si client non trouvé
+        }
     }
 
-
+    // Supprimer un client
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteClient(@PathVariable Long id) {
-        clientService.deleteClient(id);
-        return ResponseEntity.noContent().build();
+        try {
+            clientService.deleteClient(id);
+            return ResponseEntity.noContent().build(); // ✅ Pas de contenu à retourner après suppression
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build(); // ✅ Retourne 404 si client non trouvé
+        }
     }
-
-
 
     @GetMapping("/{id}/projects")
-    public ResponseEntity<List<Project>> getProjectsByClient(@PathVariable Long id) {
-        return ResponseEntity.ok(clientService.getProjectsByClient(id));
+    public ResponseEntity<List<ProjectDTO>> getProjectsByClient(@PathVariable Long id) {
+        try {
+            List<ProjectDTO> projects = clientService.getProjectsByClient(id);
+            return ResponseEntity.ok(projects); // ✅ Retourne les projets du client sous forme de DTO
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build(); // ✅ Retourne 404 si aucun projet trouvé pour ce client
+        }
     }
 
+
+    // Méthode utilitaire privée pour conversion DTO -> Entity
+    private Client convertToEntity(ClientDTO dto) {
+        Client client = new Client();
+        client.setCompany(dto.getCompany());
+        client.setSalesManagers(dto.getSalesManagers());
+        client.setContact(dto.getContact());
+        client.setAddress(dto.getAddress());
+        client.setEmail(dto.getEmail());
+        return client;
+    }
 }
