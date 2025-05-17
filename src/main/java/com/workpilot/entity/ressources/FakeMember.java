@@ -18,5 +18,10 @@ public class FakeMember {
     private String name;        // Ex: "Inconnu (Junior)"
     private String role;        // JUNIOR, SENIOR, EXPERT (texte ou Enum)
     private String initial;     // Ex: "IJ" → généré automatiquement ou fourni
-    private String note;        // Champ libre : "Ajouté automatiquement", etc.
+    private String note;
+
+    @ManyToOne
+    @JoinColumn(name = "demande_id")
+    private Demande demande;
+
 }

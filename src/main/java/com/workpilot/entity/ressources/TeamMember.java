@@ -30,11 +30,15 @@ public class TeamMember {
     private String experienceRange;
 
     @Enumerated(EnumType.STRING)
-    private Seniority Role;
-
+    private Seniority role;
+    private Boolean fake = false;
     private Double cost;
     private String note;
     private LocalDate StartDate;
+    private LocalDate EndDate;
+    private String status; // "En poste" ou "Inactif"
+
+
 
     @ElementCollection
     @CollectionTable(name = "team_member_holidays", joinColumns = @JoinColumn(name = "team_member_id"))

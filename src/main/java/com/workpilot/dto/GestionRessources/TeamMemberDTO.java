@@ -17,7 +17,7 @@ public class TeamMemberDTO {
     private String initial;
     private String jobTitle;
     private List<String> holiday;
-    private Seniority Role;
+    private Seniority role;
     private Double cost;
     private String note;
     private String image;
@@ -25,6 +25,8 @@ public class TeamMemberDTO {
     private List<Long> teams;
     private String experienceRange;
     private LocalDate StartDate;
+    private LocalDate EndDate;
+    private String status; // "En poste" ou "Inactif"
 
 
 
@@ -37,7 +39,7 @@ public class TeamMemberDTO {
         this.initial = initial;
         this.jobTitle = jobTitle;
         this.holiday = holiday;
-        this.Role = role;
+        this.role = role;
         this.cost = cost;
         this.note = note;
         this.image = image;

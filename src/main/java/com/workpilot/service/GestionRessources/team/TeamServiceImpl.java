@@ -9,9 +9,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,12 +36,18 @@ public class TeamServiceImpl implements TeamService {
     @Autowired
     private DemandeRepository demandeRepository;
 
-
     @Override
     public List<TeamDTO> getAllTeams() {
         return teamRepository.findAll().stream()
                 .map(team -> convertToDTO(team, null))
                 .collect(Collectors.toList());
+    }
+
+    private Team convertToEntity(TeamDTO dto) {
+        Team team = new Team();
+        team.setId(dto.getId());
+        team.setName(dto.getName());
+        return team;
     }
 
     @Override
@@ -124,32 +128,23 @@ public class TeamServiceImpl implements TeamService {
         TeamMember member = teamMemberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Membre non trouvé"));
 
-        // Supprimer les affectations du membre dans tous les projets où l'équipe est impliquée
         for (Project project : team.getProjects()) {
-            // Récupérer toutes les affectations du membre dans les tâches de ce projet
             List<TaskAssignment> taskAssignments = taskAssignmentRepository.findByTeamMemberId(memberId);
 
             for (TaskAssignment taskAssignment : taskAssignments) {
-                // Vérifier si la ProjectTask liée appartient au projet
                 if (taskAssignment.getTask().getProject().equals(project)) {
-                    // Supprimer l'affectation si le projet correspond
                     taskAssignmentRepository.delete(taskAssignment);
                 }
             }
         }
 
-        // Supprimer toutes ses allocations dans l'équipe
         List<TeamMemberAllocation> allocations = teamMemberAllocationRepository
                 .findAllByTeamMemberIdAndTeamId(memberId, teamId);
-
-        // Supprimer les allocations
         teamMemberAllocationRepository.deleteAll(allocations);
 
-        // Retirer le membre de l'équipe et vice versa (relation bidirectionnelle)
         team.getMembers().remove(member);
         member.getTeams().remove(team);
 
-        // Sauvegarder les deux entités mises à jour
         teamRepository.save(team);
         teamMemberRepository.save(member);
     }
@@ -168,7 +163,7 @@ public class TeamServiceImpl implements TeamService {
             if (demande.getGeneratedTeam() != null && demande.getGeneratedTeam().getId().equals(teamId)) {
                 for (FakeMember fake : demande.getFakeMembers()) {
                     TeamMemberDTO dto = new TeamMemberDTO();
-                    dto.setId(-1L);
+                    dto.setId((long) -Math.abs(fake.getName().hashCode()));
                     dto.setName(fake.getName());
                     dto.setInitial(fake.getInitial());
                     dto.setNote(fake.getNote());
@@ -185,7 +180,6 @@ public class TeamServiceImpl implements TeamService {
 
         return result;
     }
-
 
     private double estimateCostByRole(Seniority role) {
         return switch (role) {
@@ -227,32 +221,13 @@ public class TeamServiceImpl implements TeamService {
         if (team.getMembers() != null) {
             dto.setMembers(
                     team.getMembers().stream()
-                            .map(member -> {
-                                if (member.getId() != null && member.getId() < 0) {
-                                    return new TeamMemberDTO(
-                                            -1L,
-                                            member.getName(),
-                                            member.getInitial(),
-                                            member.getJobTitle(),
-                                            member.getHoliday(),
-                                            member.getRole(),
-                                            member.getCost(),
-                                            member.getNote(),
-                                            member.getImage(),
-                                            List.of(team.getId()),
-                                            member.getExperienceRange(),
-                                            0.0 // pas d'allocation
-                                    );
-                                }
-                                return convertToMemberDTO(member, projectId, team);
-                            })
+                            .map(member -> convertToMemberDTO(member, projectId, team))
                             .collect(Collectors.toList())
             );
         }
 
         return dto;
     }
-
 
     private TeamMemberDTO convertToMemberDTO(TeamMember member, Long projectId, Team team) {
         Double allocation = teamMemberAllocationRepository
@@ -273,15 +248,8 @@ public class TeamServiceImpl implements TeamService {
                 member.getImage(),
                 member.getTeams().stream().map(Team::getId).collect(Collectors.toList()),
                 member.getExperienceRange(),
-                allocation // 🟡 spécifique à ce membre pour ce projet et cette équipe
+                allocation
         );
-    }
-
-    private Team convertToEntity(TeamDTO dto) {
-        Team team = new Team();
-        team.setId(dto.getId());
-        team.setName(dto.getName());
-        return team;
     }
 
     @Override
@@ -302,8 +270,5 @@ public class TeamServiceImpl implements TeamService {
             throw new RuntimeException("Erreur dans getAvailableMembers : " + e.getMessage());
         }
     }
-
-
-
 
 }

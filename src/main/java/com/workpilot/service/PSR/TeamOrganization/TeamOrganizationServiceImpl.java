@@ -76,17 +76,11 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
         return convertToDTO(teamOrganizationRepository.save(entity));
     }
 
-    /**
-     * Supprime une organisation d’équipe par ID.
-     */
     @Override
     public void deleteTeamOrganization(Long id) {
         teamOrganizationRepository.deleteById(id);
     }
 
-    // ========================
-    // Méthodes de conversion
-    // ========================
 
     private TeamOrganizationDTO convertToDTO(TeamOrganization entity) {
         TeamOrganizationDTO dto = new TeamOrganizationDTO();
@@ -195,8 +189,9 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
 
                 // Gestion des congés
                 List<String> holidays = member.getHoliday();
-                String holidaysStr = holidays != null ? String.join(", ", holidays) : "";
-                dto.setHoliday(holidaysStr);
+                String holidayCount = holidays != null ? String.valueOf(holidays.size()) : "0";
+                dto.setHoliday(holidayCount);
+
 
                 // Nom de l'équipe actuelle
                 dto.setTeamName(team.getName());

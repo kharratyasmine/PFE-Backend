@@ -101,22 +101,16 @@ public class DemandeServiceImpl implements DemandeService {
         Team generatedTeam = new Team();
         generatedTeam.setName("Team - " + demandeDTO.getName());
 
-        // Ajouter tous les membres (vrais + faux temporairement)
         Set<TeamMember> teamMembers = new HashSet<>(realMembers);
 
         for (FakeMember fake : fakeMembers) {
-            TeamMember virtual = new TeamMember();
-            virtual.setId(-1L); // Temp ID
-            virtual.setName(fake.getName());
-            virtual.setInitial(fake.getInitial());
-            virtual.setNote(fake.getNote());
-            virtual.setRole(Seniority.valueOf(fake.getRole()));
-            virtual.setCost(estimateCostByRole(Seniority.valueOf(fake.getRole())));
-            virtual.setImage("assets/img/profiles/default-avatar.jpg");
-            virtual.setHoliday(new ArrayList<>());
-            virtual.setExperienceRange("-");
-            teamMembers.add(virtual);
+            TeamMember existingFake = teamMemberRepository
+                    .findByFakeTrueAndRole(Seniority.valueOf(fake.getRole()))
+                    .orElseThrow(() -> new RuntimeException("Fake member not found for role: " + fake.getRole()));
+
+            teamMembers.add(existingFake);
         }
+
 
         generatedTeam.setMembers(teamMembers);
         generatedTeam.getProjects().add(project);
@@ -144,6 +138,7 @@ public class DemandeServiceImpl implements DemandeService {
         return dto;
     }
 
+
     private Devis createGeneratedDevisForDemande(Demande demande) {
         if (demande.getId() == null) demande = demandeRepository.save(demande);
         Project project = demande.getProject();
@@ -161,16 +156,13 @@ public class DemandeServiceImpl implements DemandeService {
         List<TeamMember> allMembers = new ArrayList<>(demande.getTeamMembers());
         if (demande.getFakeMembers() != null) {
             for (FakeMember f : demande.getFakeMembers()) {
-                TeamMember temp = new TeamMember();
-                temp.setName(f.getName());
-                temp.setInitial(f.getInitial());
-                temp.setNote(f.getNote());
-                temp.setRole(Seniority.valueOf(f.getRole())); // ✅ Correction
-                temp.setCost(estimateCostByRole(Seniority.valueOf(f.getRole())));
-                temp.setStartDate(LocalDate.now());
-                allMembers.add(temp);
+                TeamMember existingFake = teamMemberRepository
+                        .findByFakeTrueAndRole(Seniority.valueOf(f.getRole()))
+                        .orElseThrow(() -> new RuntimeException("Fake member not found"));
+                allMembers.add(existingFake);
             }
         }
+
 
         List<FinancialDetail> details = financialDetailService.generateFromTeamMembers(
                 allMembers,
@@ -219,6 +211,7 @@ public class DemandeServiceImpl implements DemandeService {
         return savedDevis;
     }
 
+
     private double estimateCostByRole(Seniority role) {
         return switch (role) {
             case JUNIOR -> 200;
@@ -249,7 +242,6 @@ public class DemandeServiceImpl implements DemandeService {
 
     @Override
     public DemandeDTO updateDemande(Long id, DemandeDTO demandeDTO) {
-        // 🔍 Rechercher la demande existante
         Demande demande = demandeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Demande not found"));
 
@@ -257,72 +249,99 @@ public class DemandeServiceImpl implements DemandeService {
         demande.setName(demandeDTO.getName());
         demande.setDateDebut(demandeDTO.getDateDebut());
         demande.setDateFin(demandeDTO.getDateFin());
-        demande.setScope(demandeDTO.getScope()); // 🆕 important si modifié
-        demande.setRequirements(demandeDTO.getRequirements()); // ✅ contient noms des membres fictifs
+        demande.setScope(demandeDTO.getScope());
+        demande.setRequirements(demandeDTO.getRequirements());
 
         // 🔄 Lier le projet
         Project project = projectRepository.findById(demandeDTO.getProjectId())
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
         demande.setProject(project);
 
-        // 🔄 Mise à jour des membres réels uniquement (id > 0)
+        // 🔄 Membres réels
+        List<TeamMember> realMembers = new ArrayList<>();
         if (demandeDTO.getTeamMemberIds() != null) {
             List<Long> realIds = demandeDTO.getTeamMemberIds().stream()
                     .filter(memberId -> memberId > 0)
-                    .collect(Collectors.toList());
+                    .toList();
 
-            Set<TeamMember> teamMembers = new HashSet<>(teamMemberRepository.findAllById(realIds));
-            demande.setTeamMembers(new ArrayList<>(teamMembers));
+            realMembers = teamMemberRepository.findAllById(realIds);
+            demande.setTeamMembers(realMembers);
         }
 
-        // 💾 Sauvegarde de la demande mise à jour
+        // 🔄 Membres fictifs
+        Demande finalDemande = demande;
+        List<FakeMember> newFakeMembers = demandeDTO.getFakeMembers() != null ?
+                demandeDTO.getFakeMembers().stream().map(dto -> {
+                    FakeMember fake = new FakeMember();
+                    fake.setName(dto.getName());
+                    fake.setRole(dto.getRole());
+                    fake.setInitial(dto.getInitial());
+                    fake.setNote(dto.getNote());
+                    fake.setDemande(finalDemande); // 🔗 Lien inverse
+                    return fake;
+                }).collect(Collectors.toList()) : new ArrayList<>();
+
+        // ✅ Gestion correcte avec orphanRemoval
+        demande.getFakeMembers().clear(); // supprime les anciens (orphanRemoval = true)
+        demande.getFakeMembers().addAll(newFakeMembers); // ajoute les nouveaux
+
+        // 💾 Sauvegarde de la demande
         demande = demandeRepository.save(demande);
 
-        // 🔁 Re-génération du devis si nécessaire
+        // 🔁 Mise à jour de l'équipe générée
+        if (demande.getGeneratedTeam() != null) {
+            Team team = demande.getGeneratedTeam();
+            team.getMembers().clear(); // nettoyer les anciens membres
+
+            Set<TeamMember> updatedMembers = new HashSet<>(realMembers);
+
+            for (FakeMember f : newFakeMembers) {
+                TeamMember fake = teamMemberRepository.findByFakeTrueAndRole(Seniority.valueOf(f.getRole()))
+                        .orElseThrow(() -> new RuntimeException("Fake member not found: " + f.getRole()));
+                updatedMembers.add(fake);
+            }
+
+            team.setMembers(updatedMembers);
+            teamRepository.save(team);
+        }
+
+        // 🔁 Mise à jour du devis généré
         if (demande.getGeneratedDevis() != null) {
             Devis generatedDevis = demande.getGeneratedDevis();
             Long devisId = generatedDevis.getId();
 
-            // 🧹 Supprimer anciens détails
             financialDetailRepository.deleteByDevis_Id(devisId);
             invoicingDetailRepository.deleteByDevis_Id(devisId);
             workloadDetailRepository.deleteAllByDevisId(devisId);
 
-            // 📆 Récupérer les jours fériés
-            Set<LocalDate> holidays = publicHolidayService.getAllCombinedHolidaysBetween(
-                    demande.getDateDebut(), demande.getDateFin());
+            List<TeamMember> allMembers = new ArrayList<>(realMembers);
+            for (FakeMember f : newFakeMembers) {
+                TeamMember fake = teamMemberRepository.findByFakeTrueAndRole(Seniority.valueOf(f.getRole()))
+                        .orElseThrow(() -> new RuntimeException("Fake member not found for role: " + f.getRole()));
+                allMembers.add(fake);
+            }
 
-            // 🔁 Générer détails financiers
             List<FinancialDetail> details = financialDetailService.generateFromTeamMembers(
-                    new ArrayList<>(demande.getTeamMembers()),
-                    demande.getDateDebut(),
-                    demande.getDateFin(),
-                    generatedDevis,
-                    demande
-            );
+                    allMembers, demande.getDateDebut(), demande.getDateFin(), generatedDevis, demande);
             financialDetailRepository.saveAll(details);
 
-            // 🔁 Générer détails de facturation
             List<InvoicingDetailDTO> dtoList = invoicingDetailService.generateInvoicingDetails(devisId);
-            final Devis finalDevis = generatedDevis;
-            final Demande finalDemande = demande;
-
+            Demande finalDemande1 = demande;
             List<InvoicingDetail> invoices = dtoList.stream().map(dto -> {
                 InvoicingDetail i = new InvoicingDetail();
                 i.setDescription(dto.getDescription());
                 i.setInvoicingDate(dto.getInvoicingDate());
                 i.setAmount(dto.getAmount());
-                i.setDevis(finalDevis);
-                i.setDemande(finalDemande);
+                i.setDevis(generatedDevis);
+                i.setDemande(finalDemande1);
                 return i;
             }).collect(Collectors.toList());
             invoicingDetailRepository.saveAll(invoices);
 
-            // 🔁 Générer les workloads
             workloadDetailService.generateFromDemandes(devisId);
         }
 
-        // 📅 Mise à jour des dates du projet
+        // 🔁 Mise à jour automatique des dates du projet
         updateProjectDates(project.getId());
 
         return convertToDTO(demande);

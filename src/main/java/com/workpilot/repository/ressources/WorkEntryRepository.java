@@ -21,4 +21,6 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
     @Query("DELETE FROM TaskAssignment a WHERE a.task.id = :taskId")
     void deleteByTaskId(@Param("taskId") Long taskId);
 
+
+
 }

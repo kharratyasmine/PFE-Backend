@@ -302,6 +302,23 @@ public class ProjectServiceImpl implements ProjectService {
                 return memberDto;
             }).collect(Collectors.toList());
 
+            // Ajout des fake members liés à cette team via les demandes
+            List<Demande> demandes = project.getDemandes();
+            if (demandes != null) {
+                for (Demande demande : demandes) {
+                    if (demande.getGeneratedTeam() != null && demande.getGeneratedTeam().getId().equals(team.getId())) {
+                        if (demande.getFakeMembers() != null) {
+                            for (FakeMember fake : demande.getFakeMembers()) {
+                                TeamMemberAllocationDTO fakeDto = new TeamMemberAllocationDTO();
+                                fakeDto.setMemberId(-1L); // ou un hash négatif unique si besoin
+                                fakeDto.setAllocation(0.0);
+                                memberAllocations.add(fakeDto);
+                            }
+                        }
+                    }
+                }
+            }
+
             teamDto.setMembers(memberAllocations);
             return teamDto;
         }).collect(Collectors.toList());

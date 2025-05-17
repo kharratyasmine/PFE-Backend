@@ -47,12 +47,25 @@ public class TeamMemberServiceImpl implements TeamMemberService {
     public TeamMemberDTO createTeamMember(TeamMemberDTO teamMemberDTO) {
         try {
             TeamMember teamMember = convertToEntity(teamMemberDTO);
+            // ✅ VALIDATIONS
+            if (teamMember.getName() == null || teamMember.getName().trim().isEmpty() || teamMember.getName().equalsIgnoreCase("Inconnu")) {
+                throw new IllegalArgumentException("Le nom du membre est invalide.");
+            }
+
+            if (teamMember.getInitial() == null || teamMember.getInitial().trim().isEmpty()) {
+                throw new IllegalArgumentException("Les initiales sont obligatoires.");
+            }
+
+            if (teamMember.getStartDate() == null) {
+                throw new IllegalArgumentException("La date de début est obligatoire.");
+            }
 
             // 🔥 Suggérer un rôle automatiquement si aucun n'est précisé
             if (teamMember.getStartDate() != null && teamMemberDTO.getRole() == null) {
                 double exp = getYearsFromStartDate(teamMember.getStartDate());
                 teamMember.setRole(suggestRole(exp));
             }
+            teamMember.setStatus(calculateStatus(teamMember.getEndDate()));
 
             teamMember = teamMemberRepository.save(teamMember);
             return convertToDTO(teamMember);
@@ -74,8 +87,7 @@ public class TeamMemberServiceImpl implements TeamMemberService {
                         double exp = getYearsFromStartDate(updatedMember.getStartDate());
                         updatedMember.setRole(suggestRole(exp));
                     }
-
-                    updatedMember = teamMemberRepository.save(updatedMember);
+                    updatedMember.setStatus(calculateStatus(updatedMember.getEndDate()));                    updatedMember = teamMemberRepository.save(updatedMember);
                     return convertToDTO(updatedMember);
                 })
                 .orElse(null);
@@ -140,6 +152,7 @@ public class TeamMemberServiceImpl implements TeamMemberService {
         dto.setImage(teamMember.getImage());
         dto.setExperienceRange(getExperienceRange(teamMember.getStartDate()));
         dto.setStartDate(teamMember.getStartDate());
+        dto.setEndDate(teamMember.getEndDate());
         dto.setTeams(
                 teamMember.getTeams().stream()
                         .map(Team::getId)
@@ -161,6 +174,9 @@ public class TeamMemberServiceImpl implements TeamMemberService {
         teamMember.setNote(dto.getNote());
         teamMember.setImage(dto.getImage());
         teamMember.setStartDate(dto.getStartDate());
+        teamMember.setEndDate(dto.getEndDate());
+        teamMember.setStatus(calculateStatus(dto.getEndDate()));
+
         teamMember.setExperienceRange(getExperienceRange(teamMember.getStartDate()));
 
 
@@ -176,6 +192,14 @@ public class TeamMemberServiceImpl implements TeamMemberService {
 
 
         return teamMember;
+    }
+
+    private String calculateStatus(LocalDate endDate) {
+        if (endDate == null || endDate.isAfter(LocalDate.now())) {
+            return "En poste"; // ✅ Encore en activité
+        } else {
+            return "Inactif"; // ❌ Fin de contrat dépassée
+        }
     }
 
     @Override
