@@ -24,8 +24,6 @@ public class ProjectTask {
     @Enumerated(EnumType.STRING)
     private TaskStatus status;
 
-    private String progress;
-
     @ManyToOne(fetch = FetchType.LAZY)
     private Project project;
 

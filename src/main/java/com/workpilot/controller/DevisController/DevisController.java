@@ -35,7 +35,6 @@ public class DevisController {
         return devisService.createDevis(devisDTO);
     }
 
-    // ✅ NOUVELLE MÉTHODE POUR METTRE À JOUR UN DEVIS
     @PutMapping("/{id}")
     public ResponseEntity<DevisDTO> updateDevis(@PathVariable Long id, @RequestBody DevisDTO devisDTO) {
         DevisDTO updatedDevis = devisService.updateDevis(id, devisDTO);

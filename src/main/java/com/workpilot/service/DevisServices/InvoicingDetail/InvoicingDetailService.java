@@ -16,6 +16,6 @@ public interface InvoicingDetailService {
     void deleteInvoicingDetail(Long id);
 
     List<InvoicingDetail> getByDevisId(Long devisId);
-    List<InvoicingDetailDTO> generateInvoicingDetails(Long devisId, int startMonth);
+    List<InvoicingDetailDTO> generateInvoicingDetails(Long devisId);
 
 }

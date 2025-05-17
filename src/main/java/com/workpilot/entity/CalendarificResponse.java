@@ -36,6 +36,7 @@ public class CalendarificResponse {
     public static class HolidayWrapper {
         private String name;
         private DateWrapper date;
+        private String primary_type; // ✅ Ajoute ce champ
 
         public String getName() {
             return name;
@@ -45,6 +46,10 @@ public class CalendarificResponse {
             return date;
         }
 
+        public String getPrimary_type() {
+            return primary_type;
+        }
+
         public void setName(String name) {
             this.name = name;
         }
@@ -52,7 +57,12 @@ public class CalendarificResponse {
         public void setDate(DateWrapper date) {
             this.date = date;
         }
+
+        public void setPrimary_type(String primary_type) {
+            this.primary_type = primary_type;
+        }
     }
+
 
     public static class DateWrapper {
         private String iso;

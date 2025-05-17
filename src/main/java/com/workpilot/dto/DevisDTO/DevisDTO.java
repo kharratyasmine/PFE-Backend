@@ -1,7 +1,10 @@
 package com.workpilot.dto.DevisDTO;
 
 
-import com.workpilot.dto.*;
+import com.workpilot.dto.GestionRessources.ClientDTO;
+import com.workpilot.dto.GestionRessources.DemandeDTO;
+import com.workpilot.dto.GestionRessources.ProjectDTO;
+import com.workpilot.dto.GestionRessources.UserDTO;
 import lombok.*;
 
 import java.time.LocalDate;
@@ -25,8 +28,10 @@ public class DevisDTO {
 
     private ClientDTO client;
     private UserDTO user;
-    private Long projectId; // On ne charge que l'ID du projet
+    private Long projectId;// On ne charge que l'ID du projet
     private ProjectDTO project;
+    private Long demandeId;
+
     private List<FinancialDetailDTO> financialDetails;
     private List<WorkloadDetailDTO> workloadDetails;
     private List<InvoicingDetailDTO> invoicingDetails;

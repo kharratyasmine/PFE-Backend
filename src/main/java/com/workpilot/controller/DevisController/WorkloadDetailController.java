@@ -18,9 +18,8 @@ public class WorkloadDetailController {
 
     @GetMapping
     public ResponseEntity<List<WorkloadDetail>> GetAllWorkloadDetail() {
-        List<WorkloadDetail> workloadDetail = workloadDetailService.GetAllWorkloadDetail();
-        return ResponseEntity.ok(workloadDetail);
-
+        List<WorkloadDetail> workloadDetails = workloadDetailService.GetAllWorkloadDetail();
+        return ResponseEntity.ok(workloadDetails);
     }
 
     @PostMapping
@@ -33,7 +32,6 @@ public class WorkloadDetailController {
         return ResponseEntity.ok(workloadDetailService.updateWorkloadDetail(id, workloadDetail));
     }
 
-
     @GetMapping("/{id}")
     public ResponseEntity<WorkloadDetail> getWorkloadDetailById(@PathVariable Long id) {
         return ResponseEntity.ok(workloadDetailService.getWorkloadDetailById(id));
@@ -45,17 +43,32 @@ public class WorkloadDetailController {
         return ResponseEntity.noContent().build();
     }
 
-    // Récupérer les WorkloadDetail associés à un devis
-    @GetMapping("/devis/{devisId}")
-    public ResponseEntity<List<WorkloadDetail>> getByDevis(@PathVariable Long devisId) {
-        List<WorkloadDetail> details = workloadDetailService.getByDevisId(devisId);
-        return ResponseEntity.ok(details);
-    }
-
+    // ✅ Génération manuelle (bouton ou action côté Angular)
     @PostMapping("/generate/{devisId}")
-    public List<WorkloadDetailDTO> generate(@PathVariable Long devisId) {
-        return workloadDetailService.generateFromDemandes(devisId);
-
+    public ResponseEntity<List<WorkloadDetailDTO>> generate(@PathVariable Long devisId) {
+        List<WorkloadDetailDTO> generated = workloadDetailService.generateFromDemandes(devisId);
+        return ResponseEntity.ok(generated);
     }
 
+    // ✅ Chargement sans duplication automatique
+    @GetMapping("/devis/{devisId}")
+    public ResponseEntity<List<WorkloadDetailDTO>> getByDevis(@PathVariable Long devisId) {
+        List<WorkloadDetail> existingDetails = workloadDetailService.getByDevisId(devisId);
+        List<WorkloadDetailDTO> dtos = existingDetails.stream()
+                .map(wd -> WorkloadDetailDTO.builder()
+                        .id(wd.getId())
+                        .period(wd.getPeriod())
+                        .estimatedWorkload(wd.getEstimatedWorkload())
+                        .publicHolidays(wd.getPublicHolidays())
+                        .publicHolidayDates(wd.getPublicHolidayDates())
+                        .numberOfResources(wd.getNumberOfResources())
+                        .totalEstimatedWorkload(wd.getTotalEstimatedWorkload())
+                        .totalWorkload(wd.getTotalWorkload())
+                        .note(wd.getNote())
+                        .devisId(wd.getDevis().getId())
+                        .build())
+                .toList();
+
+        return ResponseEntity.ok(dtos);
+    }
 }

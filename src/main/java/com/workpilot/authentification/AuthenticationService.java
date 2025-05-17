@@ -6,7 +6,7 @@ import com.workpilot.entity.auth.User;
 import com.workpilot.entity.auth.token.JwtTokenType;
 import com.workpilot.entity.auth.token.Token;
 import com.workpilot.entity.auth.token.TokenRepository;
-import com.workpilot.repository.UserRepository;
+import com.workpilot.repository.ressources.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

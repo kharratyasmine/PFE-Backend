@@ -1,7 +1,7 @@
 package com.workpilot.configuration;
 
 import com.workpilot.auditing.ApplicationAuditAware;
-import com.workpilot.repository.UserRepository;
+import com.workpilot.repository.ressources.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

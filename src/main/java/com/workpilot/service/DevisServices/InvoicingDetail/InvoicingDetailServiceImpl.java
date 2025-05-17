@@ -4,21 +4,20 @@ import com.workpilot.dto.DevisDTO.InvoicingDetailDTO;
 import com.workpilot.entity.devis.Devis;
 import com.workpilot.entity.devis.FinancialDetail;
 import com.workpilot.entity.devis.InvoicingDetail;
-import com.workpilot.entity.ressources.TeamMember;
+import com.workpilot.entity.ressources.Demande;
 import com.workpilot.repository.devis.DevisRepository;
+import com.workpilot.repository.devis.FinancialDetailRepository;
 import com.workpilot.repository.devis.InvoicingDetailRepository;
+import com.workpilot.service.PublicHolidayService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.Month;
 import java.time.YearMonth;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.*;
 
 @Service
 public class InvoicingDetailServiceImpl implements InvoicingDetailService {
@@ -28,6 +27,12 @@ public class InvoicingDetailServiceImpl implements InvoicingDetailService {
 
     @Autowired
     private DevisRepository devisRepository;
+
+    @Autowired
+    private FinancialDetailRepository financialDetailRepository;
+
+    @Autowired
+    private PublicHolidayService publicHolidayService;
 
     @Override
     public List<InvoicingDetail> GetAllInvoicingDetail() {
@@ -53,7 +58,6 @@ public class InvoicingDetailServiceImpl implements InvoicingDetailService {
         if (updatedDetail.getDescription() != null) existingDetail.setDescription(updatedDetail.getDescription());
         if (updatedDetail.getInvoicingDate() != null) existingDetail.setInvoicingDate(updatedDetail.getInvoicingDate());
         if (updatedDetail.getAmount() != null) existingDetail.setAmount(updatedDetail.getAmount());
-        System.out.println("✅ Mise à jour prête à être sauvegardée");
 
         return invoicingDetailRepository.save(existingDetail);
     }
@@ -69,115 +73,88 @@ public class InvoicingDetailServiceImpl implements InvoicingDetailService {
     }
 
     @Override
-    public List<InvoicingDetailDTO> generateInvoicingDetails(Long devisId, int startMonth) {
+    public List<InvoicingDetailDTO> generateInvoicingDetails(Long devisId) {
         Devis devis = devisRepository.findById(devisId)
-                .orElseThrow(() -> new RuntimeException("Devis not found"));
+                .orElseThrow(() -> new RuntimeException("\ud83d\udce6 Devis avec ID " + devisId + " introuvable"));
 
-        int baseYear = (devis.getCreationDate() != null)
-                ? devis.getCreationDate().getYear()
-                : LocalDate.now().getYear();
-
-        // Récupérer les membres du projet
-        Set<TeamMember> members = devis.getProject().getTeams().stream()
-                .flatMap(team -> team.getMembers().stream())
-                .collect(Collectors.toSet());
-
-        // Jours fériés fixes
-        Set<LocalDate> publicHolidays = Set.of(
-                LocalDate.of(baseYear, 1, 1),
-                LocalDate.of(baseYear, 3, 20),
-                LocalDate.of(baseYear, 4, 9),
-                LocalDate.of(baseYear, 5, 1),
-                LocalDate.of(baseYear, 7, 25),
-                LocalDate.of(baseYear, 8, 13),
-                LocalDate.of(baseYear, 10, 15),
-                LocalDate.of(baseYear, 12, 17)
-        );
-
-        List<InvoicingDetail> details = new ArrayList<>();
-
-        for (int i = 0; i < 3; i++) {
-            YearMonth ym = YearMonth.of(baseYear, startMonth).plusMonths(i);
-            int year = ym.getYear();
-            int month = ym.getMonthValue();
-
-            String description = getMonthName(month);
-            int workloadDays = getTotalWorkloadWithDaysOff(members, year, month, publicHolidays);
-
-            BigDecimal totalDailyCost = devis.getFinancialDetails().stream()
-                    .map(FinancialDetail::getDailyCost)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            BigDecimal amount = totalDailyCost.multiply(BigDecimal.valueOf(workloadDays));
-            LocalDate invoicingDate = ym.atEndOfMonth(); // ✅ Dernière date du mois
-
-            details.add(new InvoicingDetail(null, description, invoicingDate, amount, devis));
+        Demande demande = devis.getDemande();
+        if (demande == null) {
+            throw new RuntimeException("\u274c Devis non li\u00e9 \u00e0 une demande.");
         }
 
-        return invoicingDetailRepository.saveAll(details)
-                .stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
+        LocalDate start = demande.getDateDebut();
+        LocalDate end = demande.getDateFin();
+
+        if (start == null || end == null || end.isBefore(start)) {
+            throw new RuntimeException("\u274c Dates invalides dans la demande (start: " + start + ", end: " + end + ")");
+        }
+
+        List<FinancialDetail> financialDetails = financialDetailRepository.findByDevisId(devisId);
+        if (financialDetails.isEmpty()) {
+            throw new RuntimeException("\u274c Aucun d\u00e9tail financier trouv\u00e9 pour ce devis.");
+        }
+
+        Set<LocalDate> publicHolidays = publicHolidayService.getAllCombinedHolidaysBetween(start, end);
+
+        List<YearMonth> months = new ArrayList<>();
+        YearMonth current = YearMonth.from(start);
+        YearMonth endMonth = YearMonth.from(end);
+
+        while (!current.isAfter(endMonth)) {
+            months.add(current);
+            current = current.plusMonths(1);
+        }
+
+        BigDecimal totalCost = financialDetails.stream()
+                .map(FinancialDetail::getTotalCost)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal monthlyAmount = totalCost.divide(BigDecimal.valueOf(months.size()), 2, RoundingMode.HALF_UP);
+
+        List<InvoicingDetailDTO> result = new ArrayList<>();
+        for (YearMonth ym : months) {
+            LocalDate lastDay = ym.atEndOfMonth();
+            result.add(InvoicingDetailDTO.builder()
+                    .description(getMonthName(ym.getMonthValue()) + " " + ym.getYear())
+                    .invoicingDate(lastDay)
+                    .amount(monthlyAmount)
+                    .build());
+        }
+
+        return result;
     }
 
+    private String getMonthName(int month) {
+        return switch (month) {
+            case 1 -> "janv";
+            case 2 -> "févr";
+            case 3 -> "mars";
+            case 4 -> "avril";
+            case 5 -> "mai";
+            case 6 -> "juin";
+            case 7 -> "juil";
+            case 8 -> "août";
+            case 9 -> "sept";
+            case 10 -> "oct";
+            case 11 -> "nov";
+            case 12 -> "déc";
+            default -> "inconnu";
+        };
+    }
 
-    private int getTotalWorkloadWithDaysOff(Set<TeamMember> members, int year, int month, Set<LocalDate> publicHolidays) {
-            return members.stream()
-                    .mapToInt(member -> calculateWorkloadForMember(member, year, Month.of(month), publicHolidays))
-                    .sum();
-        }
+    private int calculateWorkload(LocalDate start, LocalDate end, Set<LocalDate> publicHolidays) {
+        int businessDays = 0;
+        while (!start.isAfter(end)) {
+            DayOfWeek day = start.getDayOfWeek();
+            boolean isWorkingDay = day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
+            boolean isNotHoliday = !publicHolidays.contains(start);
 
-        private int calculateWorkloadForMember(TeamMember member, int year, Month month, Set<LocalDate> publicHolidays) {
-            int businessDays = 0;
-            LocalDate date = LocalDate.of(year, month, 1);
-            LocalDate end = date.withDayOfMonth(date.lengthOfMonth());
-
-            Set<LocalDate> memberHolidays = member.getHoliday().stream()
-                    .map(LocalDate::parse)
-                    .collect(Collectors.toSet());
-
-            while (!date.isAfter(end)) {
-                DayOfWeek day = date.getDayOfWeek();
-                boolean isWorkingDay = day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
-                boolean isNotPublicHoliday = !publicHolidays.contains(date);
-                boolean isNotMemberHoliday = !memberHolidays.contains(date);
-
-                if (isWorkingDay && isNotPublicHoliday && isNotMemberHoliday) {
-                    businessDays++;
-                }
-                date = date.plusDays(1);
+            if (isWorkingDay && isNotHoliday) {
+                businessDays++;
             }
 
-            return businessDays;
+            start = start.plusDays(1);
         }
-
-        private String getMonthName(int month) {
-            return switch (month) {
-                case 1 -> "janv";
-                case 2 -> "fev";
-                case 3 -> "mars";
-                case 4 -> "avril";
-                case 5 -> "mai";
-                case 6 -> "juin";
-                case 7 -> "juil";
-                case 8 -> "août";
-                case 9 -> "sept";
-                case 10 -> "oct";
-                case 11 -> "nov";
-                case 12 -> "déc";
-                default -> "inconnu";
-            };
-        }
-
-        private InvoicingDetailDTO convertToDTO(InvoicingDetail detail) {
-            return InvoicingDetailDTO.builder()
-                    .id(detail.getId())
-                    .description(detail.getDescription())
-                    .invoicingDate(detail.getInvoicingDate())
-                    .amount(detail.getAmount())
-                    .devisId(detail.getDevis().getId())
-                    .build();
-        }
+        return businessDays;
     }
-
-
+}

@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -60,5 +61,11 @@ public class Demande {
     @ManyToOne(cascade = CascadeType.REMOVE)
     @JoinColumn(name = "generated_devis_id")
     private Devis generatedDevis;
+
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "demande_id")
+    private List<FakeMember> fakeMembers = new ArrayList<>();
+
 
 }

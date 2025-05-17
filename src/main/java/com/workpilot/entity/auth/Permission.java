@@ -13,7 +13,11 @@ public enum Permission {
     MANAGER_READ("management:read"),
     MANAGER_UPDATE("management:update"),
     MANAGER_CREATE("management:create"),
-    MANAGER_DELETE("management:delete");
+    MANAGER_DELETE("management:delete"),
+    QUALITE_READ("qualite:read"),
+    QUALITE_UPDATE("qualite:update"),
+    QUALITE_DELETE("qualite:create"),
+    QUALITE_CREATE("qualite:delete");
 
     @Getter
     private final String permission;

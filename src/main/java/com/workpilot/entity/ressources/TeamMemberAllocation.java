@@ -13,8 +13,10 @@ import java.lang.reflect.Member;
 @Setter
 @Getter
 @Table(
-        name = "TeamMemberAllocation",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"team_member_id", "project_id"})
+        name = "team_member_allocation",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"project_id", "team_member_id", "team_id"})
+        }
 )
 public class TeamMemberAllocation {
 
@@ -30,6 +32,10 @@ public class TeamMemberAllocation {
     @ManyToOne
     @JoinColumn(name = "project_id")
     private Project project;
+
+    @ManyToOne
+    @JoinColumn(name = "team_id")
+    private Team team;
 
 
 }

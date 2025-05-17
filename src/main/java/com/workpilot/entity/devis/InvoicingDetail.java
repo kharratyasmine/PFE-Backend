@@ -1,6 +1,7 @@
 package com.workpilot.entity.devis;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.workpilot.entity.ressources.Demande;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -25,6 +26,11 @@ public class InvoicingDetail {
     @ManyToOne
     @JsonIgnore
     private Devis devis;
+
+    @ManyToOne
+    @JoinColumn(name = "demande_id", nullable = false)
+    @JsonIgnore
+    private Demande demande;
 
 
 

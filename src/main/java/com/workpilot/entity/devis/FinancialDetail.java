@@ -2,6 +2,7 @@ package com.workpilot.entity.devis;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.workpilot.entity.ressources.Demande;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -26,6 +27,12 @@ public class FinancialDetail {
     private Integer workload;
     private BigDecimal dailyCost;
     private BigDecimal totalCost;
+
+    @ManyToOne
+    @JoinColumn(name = "demande_id", nullable = false)
+    @JsonIgnore
+    private Demande demande;
+
 
     @ManyToOne
     @JoinColumn(name = "devis_id", nullable = false)

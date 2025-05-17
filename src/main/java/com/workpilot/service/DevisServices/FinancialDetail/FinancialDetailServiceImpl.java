@@ -1,6 +1,8 @@
 package com.workpilot.service.DevisServices.FinancialDetail;
 
+import com.workpilot.entity.devis.Devis;
 import com.workpilot.entity.devis.FinancialDetail;
+import com.workpilot.entity.ressources.Demande;
 import com.workpilot.entity.ressources.TeamMember;
 import com.workpilot.repository.devis.FinancialDetailRepository;
 import com.workpilot.service.PublicHolidayService;
@@ -23,6 +25,7 @@ public class FinancialDetailServiceImpl implements FinancialDetailService {
     @Autowired
     private PublicHolidayService publicHolidayService;
 
+
     @Override
     public List<FinancialDetail> GetAllFinancialDetail() {
         return financialDetailRepository.findAll();
@@ -35,17 +38,18 @@ public class FinancialDetailServiceImpl implements FinancialDetailService {
 
     @Override
     public FinancialDetail updateFinancialDetail(Long id, FinancialDetail updatedDetail) {
-        FinancialDetail existing = financialDetailRepository.findById(id)
+        FinancialDetail existingDetail = financialDetailRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("FinancialDetail avec ID " + id + " introuvable."));
 
-        if (updatedDetail.getPosition() != null) existing.setPosition(updatedDetail.getPosition());
-        if (updatedDetail.getWorkload() != null) existing.setWorkload(updatedDetail.getWorkload());
-        if (updatedDetail.getDailyCost() != null) existing.setDailyCost(updatedDetail.getDailyCost());
+        if (updatedDetail.getPosition() != null) existingDetail.setPosition(updatedDetail.getPosition());
+        if (updatedDetail.getWorkload() != null) existingDetail.setWorkload(updatedDetail.getWorkload());
+        if (updatedDetail.getDailyCost() != null) existingDetail.setDailyCost(updatedDetail.getDailyCost());
+        if (updatedDetail.getTotalCost() != null) existingDetail.setTotalCost(updatedDetail.getTotalCost());
         if (updatedDetail.getDailyCost() != null && updatedDetail.getWorkload() != null) {
-            existing.setTotalCost(updatedDetail.getDailyCost().multiply(BigDecimal.valueOf(updatedDetail.getWorkload())));
+            existingDetail.setTotalCost(updatedDetail.getDailyCost().multiply(BigDecimal.valueOf(updatedDetail.getWorkload())));
         }
 
-        return financialDetailRepository.save(existing);
+        return financialDetailRepository.save(existingDetail);
     }
 
     @Override
@@ -64,38 +68,61 @@ public class FinancialDetailServiceImpl implements FinancialDetailService {
         return financialDetailRepository.findByDevisId(devisId);
     }
 
+
     @Override
-    public List<FinancialDetail> generateFromTeamMembers(List<TeamMember> teamMembers, int year, Month startMonth, Set<LocalDate> publicHolidays) {
+    public List<FinancialDetail> generateFromTeamMembers(
+            List<TeamMember> teamMembers,
+            LocalDate startDate,
+            LocalDate endDate,
+            Devis devis,
+            Demande demande) {
+
+        // ✅ Appel au service pour obtenir les jours fériés dynamiques
+        Set<LocalDate> publicHolidays = publicHolidayService.getAllCombinedHolidaysBetween(startDate, endDate);
+
         Map<String, List<TeamMember>> groupedByRole = teamMembers.stream()
                 .collect(Collectors.groupingBy(member -> member.getRole().name()));
 
-        return groupedByRole.entrySet().stream().map(entry -> {
+        List<FinancialDetail> financialDetails = new ArrayList<>();
+
+        for (Map.Entry<String, List<TeamMember>> entry : groupedByRole.entrySet()) {
             String role = entry.getKey();
             List<TeamMember> members = entry.getValue();
-            int totalWorkload = members.size() * calculateWorkload(year, startMonth, publicHolidays);
-            BigDecimal dailyCost = BigDecimal.valueOf(members.get(0).getCost());
+
+            int totalWorkload = members.size() * calculateWorkload(startDate, endDate, publicHolidays);
+
+            double avgCost = members.stream().mapToDouble(TeamMember::getCost).average().orElse(0.0);
+            BigDecimal dailyCost = BigDecimal.valueOf(avgCost);
             BigDecimal totalCost = dailyCost.multiply(BigDecimal.valueOf(totalWorkload));
 
-            return FinancialDetail.builder()
+            FinancialDetail detail = FinancialDetail.builder()
                     .position(role + " (" + members.size() + ")")
                     .workload(totalWorkload)
                     .dailyCost(dailyCost)
                     .totalCost(totalCost)
+                    .devis(devis)
+                    .demande(demande)
                     .build();
-        }).collect(Collectors.toList());
+
+            financialDetails.add(detail);
+        }
+
+        return financialDetailRepository.saveAll(financialDetails);
     }
 
-    private int calculateWorkload(int year, Month startMonth, Set<LocalDate> publicHolidays) {
-        int businessDays = 0;
-        LocalDate current = LocalDate.of(year, startMonth.getValue(), 1);
-        LocalDate end = current.plusMonths(3).minusDays(1);
 
-        while (!current.isAfter(end)) {
-            boolean isBusinessDay = current.getDayOfWeek() != DayOfWeek.SATURDAY
-                    && current.getDayOfWeek() != DayOfWeek.SUNDAY
-                    && !publicHolidays.contains(current);
-            if (isBusinessDay) businessDays++;
-            current = current.plusDays(1);
+    private int calculateWorkload(LocalDate start, LocalDate end, Set<LocalDate> publicHolidays) {
+        int businessDays = 0;
+        while (!start.isAfter(end)) {
+            DayOfWeek day = start.getDayOfWeek();
+            boolean isWorkingDay = day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
+            boolean isNotHoliday = !publicHolidays.contains(start);
+
+            if (isWorkingDay && isNotHoliday) {
+                businessDays++;
+            }
+
+            start = start.plusDays(1);
         }
         return businessDays;
     }

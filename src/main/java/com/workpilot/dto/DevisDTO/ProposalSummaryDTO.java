@@ -20,4 +20,5 @@ public class ProposalSummaryDTO {
     private String organizationalAspect;
     private String commercialAspect;
     private String qualityAspect;
+    private Long devisId;
 }

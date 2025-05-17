@@ -1,18 +1,20 @@
 package com.workpilot.service.DevisServices.devis;
 
-import com.workpilot.dto.*;
 import com.workpilot.dto.DevisDTO.DevisDTO;
 import com.workpilot.dto.DevisDTO.FinancialDetailDTO;
 import com.workpilot.dto.DevisDTO.InvoicingDetailDTO;
 import com.workpilot.dto.DevisDTO.WorkloadDetailDTO;
+import com.workpilot.dto.GestionRessources.ProjectDTO;
 import com.workpilot.entity.devis.Devis;
 import com.workpilot.entity.devis.FinancialDetail;
 import com.workpilot.entity.devis.InvoicingDetail;
 import com.workpilot.entity.devis.WorkloadDetail;
-import com.workpilot.repository.ClientRepository;
-import com.workpilot.repository.ProjectRepository;
+import com.workpilot.entity.ressources.Demande;
+import com.workpilot.repository.ressources.ClientRepository;
+import com.workpilot.repository.ressources.DemandeRepository;
+import com.workpilot.repository.ressources.ProjectRepository;
 import com.workpilot.repository.devis.DevisRepository;
-import com.workpilot.service.GestionProject.project.ProjectService;
+import com.workpilot.service.GestionRessources.project.ProjectService;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -24,16 +26,18 @@ public class devisServiceImpl implements DevisService {
 
     private final DevisRepository devisRepository;
     private final ProjectRepository projectRepository;
-    private final ClientRepository clientRepository;
     private final ProjectService projectService;
+    private final DemandeRepository demandeRepository;
+
     public devisServiceImpl(DevisRepository devisRepository,
                             ProjectRepository projectRepository,
-                            ClientRepository clientRepository,
-                            ProjectService projectService ) {
+                            ProjectService projectService ,
+                            DemandeRepository demandeRepository) {
         this.devisRepository = devisRepository;
         this.projectRepository = projectRepository;
-        this.clientRepository = clientRepository;
+
         this.projectService = projectService;
+        this.demandeRepository = demandeRepository;
     }
 
     @Override
@@ -57,30 +61,18 @@ public class devisServiceImpl implements DevisService {
             throw new RuntimeException("Projet avec ID " + devisDTO.getProjectId() + " introuvable.");
         }
 
+        // Vérifie si la demande existe
+        if (devisDTO.getDemandeId() == null || !demandeRepository.existsById(devisDTO.getDemandeId())) {
+            throw new RuntimeException("Demande avec ID " + devisDTO.getDemandeId() + " introuvable.");
+        }
+
         Devis devis = convertToEntity(devisDTO);
-
-        // Associer les détails financiers au devis
-        if (devis.getFinancialDetails() != null) {
-            devis.getFinancialDetails().forEach(detail -> detail.setDevis(devis));
-        }
-
-        // Associer les charges de travail au devis
-        if (devis.getWorkloadDetails() != null) {
-            devis.getWorkloadDetails().forEach(workload -> workload.setDevis(devis));
-        }
-
-        // Associer les détails de facturation au devis
-        if (devis.getInvoicingDetails() != null) {
-            devis.getInvoicingDetails().forEach(invoice -> invoice.setDevis(devis));
-        }
-
         return convertToDTO(devisRepository.save(devis));
     }
 
     @Override
     @Transactional
     public DevisDTO updateDevis(Long id, DevisDTO updatedDevisDTO) {
-        // Vérifier si le devis existe en base
         Devis existingDevis = devisRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Devis avec ID " + id + " introuvable."));
 
@@ -90,6 +82,12 @@ public class devisServiceImpl implements DevisService {
                 throw new RuntimeException("Projet avec ID " + updatedDevisDTO.getProjectId() + " introuvable.");
             }
             existingDevis.getProject().setId(updatedDevisDTO.getProjectId());
+        }
+
+        // ✅ Récupération de la demande liée
+        Demande demande = existingDevis.getDemande();
+        if (demande == null) {
+            throw new RuntimeException("La demande associée au devis est introuvable.");
         }
 
         // Mise à jour des champs simples
@@ -104,49 +102,8 @@ public class devisServiceImpl implements DevisService {
         if (updatedDevisDTO.getProposalValidity() != null)
             existingDevis.setProposalValidity(updatedDevisDTO.getProposalValidity());
 
-        // Mise à jour des détails financiers
-        if (updatedDevisDTO.getFinancialDetails() != null) {
-            existingDevis.getFinancialDetails().clear();
-            for (FinancialDetailDTO dto : updatedDevisDTO.getFinancialDetails()) {
-                FinancialDetail detail = new FinancialDetail();
-                detail.setPosition(dto.getPosition());
-                detail.setWorkload(dto.getWorkload());
-                detail.setDailyCost(dto.getDailyCost());
-                detail.setTotalCost(dto.getTotalCost());
-                detail.setDevis(existingDevis);
-                existingDevis.getFinancialDetails().add(detail);
-            }
-        }
-
-        // Mise à jour des charges de travail
-        if (updatedDevisDTO.getWorkloadDetails() != null) {
-            existingDevis.getWorkloadDetails().clear();
-            for (WorkloadDetailDTO dto : updatedDevisDTO.getWorkloadDetails()) {
-                WorkloadDetail workload = new WorkloadDetail();
-                workload.setPeriod(dto.getPeriod());
-                workload.setEstimatedWorkload(dto.getEstimatedWorkload());
-                workload.setPublicHolidays(dto.getPublicHolidays());
-                workload.setDevis(existingDevis);
-                existingDevis.getWorkloadDetails().add(workload);
-            }
-        }
-
-        // Mise à jour des détails de facturation
-        if (updatedDevisDTO.getInvoicingDetails() != null) {
-            existingDevis.getInvoicingDetails().clear();
-            for (InvoicingDetailDTO dto : updatedDevisDTO.getInvoicingDetails()) {
-                InvoicingDetail invoice = new InvoicingDetail();
-                invoice.setDescription(dto.getDescription());
-                invoice.setInvoicingDate(dto.getInvoicingDate());
-                invoice.setAmount(dto.getAmount());
-                invoice.setDevis(existingDevis);
-                existingDevis.getInvoicingDetails().add(invoice);
-            }
-        }
-
         return convertToDTO(devisRepository.save(existingDevis));
     }
-
     @Override
     @Transactional
     public void deleteDevis(Long idDevis) {
@@ -155,9 +112,6 @@ public class devisServiceImpl implements DevisService {
         }
         devisRepository.deleteById(idDevis);
     }
-
-    /* Méthodes de conversion manuelles */
-
     private DevisDTO convertToDTO(Devis devis) {
         DevisDTO dto = new DevisDTO();
 
@@ -229,12 +183,9 @@ public class devisServiceImpl implements DevisService {
 
         return dto;
     }
-
-
-
     private Devis convertToEntity(DevisDTO dto) {
         Devis devis = new Devis();
-// champs simples
+
         devis.setReference(dto.getReference());
         devis.setEdition(dto.getEdition());
         devis.setCreationDate(dto.getCreationDate());
@@ -242,30 +193,45 @@ public class devisServiceImpl implements DevisService {
         devis.setProposalValidity(dto.getProposalValidity());
         devis.setAuthor(dto.getAuthor());
 
-// association projet
+        // Project
         projectRepository.findById(dto.getProjectId()).ifPresent(devis::setProject);
 
-// détails financiers
+        // Demande
+        Demande demande = demandeRepository.findById(dto.getDemandeId())
+                .orElseThrow(() -> new RuntimeException("Demande introuvable"));
+        devis.setDemande(demande);
+
+        // Financial details
         if (dto.getFinancialDetails() != null) {
             devis.setFinancialDetails(dto.getFinancialDetails().stream().map(detail ->
                     new FinancialDetail(null, detail.getPosition(), detail.getWorkload(),
-                            detail.getDailyCost(), detail.getTotalCost(), devis)
+                            detail.getDailyCost(), detail.getTotalCost(), demande, devis)
             ).collect(Collectors.toList()));
         }
 
-// charges de travail
-        if (dto.getWorkloadDetails() != null) {
-            devis.setWorkloadDetails(dto.getWorkloadDetails().stream().map(detail ->
-                    new WorkloadDetail(null, detail.getPeriod(), detail.getEstimatedWorkload(),
-                            detail.getPublicHolidays(), devis)
-            ).collect(Collectors.toList()));
-        }
+        // Workload details
+        devis.setWorkloadDetails(dto.getWorkloadDetails().stream().map(detail ->
+                WorkloadDetail.builder()
+                        .period(detail.getPeriod())
+                        .estimatedWorkload(detail.getEstimatedWorkload())
+                        .publicHolidays(detail.getPublicHolidays())
+                        .publicHolidayDates(detail.getPublicHolidayDates()) // ✅ ici
+                        .numberOfResources(detail.getNumberOfResources())
+                        .totalEstimatedWorkload(detail.getTotalEstimatedWorkload())
+                        .totalWorkload(detail.getTotalWorkload())
+                        .note(detail.getNote())
+                        .devis(devis)
+                        .demande(demande)
+                        .build()
+        ).collect(Collectors.toList()));
 
-// facturation
+
+
+        // Invoicing details
         if (dto.getInvoicingDetails() != null) {
             devis.setInvoicingDetails(dto.getInvoicingDetails().stream().map(detail ->
                     new InvoicingDetail(null, detail.getDescription(), detail.getInvoicingDate(),
-                            detail.getAmount(), devis)
+                            detail.getAmount(), devis, demande)
             ).collect(Collectors.toList()));
         }
 

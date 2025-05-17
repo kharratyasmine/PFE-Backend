@@ -33,7 +33,14 @@ public enum Role {
                     Permission.MANAGER_DELETE,
                     Permission.MANAGER_CREATE
             )
-    );
+    ),
+    QUALITE (
+                    Set.of(
+                            Permission.QUALITE_READ,
+                            Permission.QUALITE_UPDATE,
+                            Permission.QUALITE_DELETE,
+                            Permission.QUALITE_CREATE
+                    )    );
 
     @Getter
     private final Set<Permission> permissions;

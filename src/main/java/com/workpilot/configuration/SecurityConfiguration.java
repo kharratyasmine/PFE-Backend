@@ -31,7 +31,8 @@ import java.util.List;
 public class SecurityConfiguration {
 
     private static final String[] WHITE_LIST_URL = {
-            "/auth/**",            // ✅ couvre /auth/login, /auth/register
+            "/auth/**",
+            "/uploads/**",// ✅ couvre /auth/login, /auth/register
             "/v2/api-docs",
             "/v3/api-docs",
             "/v3/api-docs/**",
@@ -60,6 +61,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/scrape", "/fetch-data").permitAll()
                         .requestMatchers("/auth/refresh-token").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // ✅ API REST sans session
@@ -73,15 +75,17 @@ public class SecurityConfiguration {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:4200")); // Angular
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true); // Important si tu utilises des cookies ou l'authentification
+        configuration.setAllowedOrigins(List.of("http://localhost:4200"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        configuration.setExposedHeaders(List.of("Authorization"));
+        configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
     }
+
 
     @Bean
     public HttpFirewall allowUrlEncodedSlashHttpFirewall() {

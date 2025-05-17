@@ -15,4 +15,5 @@ public class FinancialDetailDTO {
     private Integer workload;
     private BigDecimal dailyCost;
     private BigDecimal totalCost;
+    private Long devisId;
 }

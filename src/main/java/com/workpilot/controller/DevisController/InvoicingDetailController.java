@@ -1,12 +1,14 @@
 package com.workpilot.controller.DevisController;
 
 import com.workpilot.dto.DevisDTO.InvoicingDetailDTO;
+import com.workpilot.entity.devis.Devis;
 import com.workpilot.entity.devis.InvoicingDetail;
 import com.workpilot.service.DevisServices.InvoicingDetail.InvoicingDetailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -51,13 +53,7 @@ public class InvoicingDetailController {
         return ResponseEntity.ok(details);
     }
 
-    @PostMapping("/generate/{devisId}/{startMonth}")
-    public ResponseEntity<List<InvoicingDetailDTO>> generateInvoicingDetails(
-            @PathVariable Long devisId,
-            @PathVariable int startMonth
-    ) {
-        List<InvoicingDetailDTO> generated = invoicingDetailService.generateInvoicingDetails(devisId, startMonth);
-        return ResponseEntity.ok(generated);
-    }
+
+
 
 }

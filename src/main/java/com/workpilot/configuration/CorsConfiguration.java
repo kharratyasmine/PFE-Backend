@@ -13,12 +13,12 @@ public class CorsConfiguration {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        // Remplacez ici par l'URL de votre application front (Angular, React, etc.)
                         .allowedOriginPatterns("http://localhost:*")
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                        .allowedHeaders("http://localhost:4200")
-                        .allowCredentials(true);
+                        .allowedHeaders("*") // ✅ autorise tous les headers (ex: Authorization, Content-Type)
+                        .allowCredentials(true); // ✅ nécessaire si tu envoies des cookies ou des headers d'auth
             }
         };
     }
 }
+
