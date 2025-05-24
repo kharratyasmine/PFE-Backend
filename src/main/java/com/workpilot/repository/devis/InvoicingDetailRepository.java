@@ -10,6 +10,7 @@ import java.util.List;
 public interface InvoicingDetailRepository extends JpaRepository<InvoicingDetail, Long> {
     List<InvoicingDetail> findByDevisId(Long devisId);
     void deleteByDevis_Id(Long devisId);
+    void deleteByDevisId(Long id);
 
-
+    void deleteAllByDevisId(Long devisId);
 }

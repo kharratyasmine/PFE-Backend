@@ -46,17 +46,27 @@ public class ProjectController {
     @PostMapping
     public ResponseEntity<?> createProject(@RequestBody ProjectDTO dto) {
         System.out.println("📌 DTO reçu : " + dto);
+        System.out.println("📌 Client ID: " + dto.getClientId());
+        System.out.println("📌 User ID: " + dto.getUserId());
 
         if (dto.getClientId() == null) {
+            System.out.println("❌ Client ID est manquant !");
             return ResponseEntity.badRequest().body("Client ID est manquant !");
         }
 
         if (dto.getUserId() == null) {
+            System.out.println("❌ User ID est manquant !");
             return ResponseEntity.badRequest().body("User ID est manquant !");
         }
 
-        Project savedProject = projectService.createProject(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(savedProject);
+        try {
+            Project savedProject = projectService.createProject(dto);
+            return ResponseEntity.status(HttpStatus.CREATED).body(savedProject);
+        } catch (Exception e) {
+            System.out.println("❌ Erreur lors de la création du projet: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
     }
 
 
@@ -74,8 +84,12 @@ public class ProjectController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProject(@PathVariable Long id) {
-        projectService.deleteProject(id);
-        return ResponseEntity.noContent().build();
+        try {
+            projectService.deleteProject(id);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PutMapping("/{projectId}/add-team/{teamId}")

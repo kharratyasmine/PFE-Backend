@@ -19,4 +19,5 @@ public class PlannedWorkloadMemberDTO {
     private String teamMemberRole;
     private Long projectId;
     private String projectName;
+
 }

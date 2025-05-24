@@ -21,4 +21,11 @@ public interface PsrService {
 
     PsrDTO updatePsr(Long id, PsrDTO psrDTO);
 
+    boolean existsPsrForCurrentWeek(Long projectId);
+
+    PsrDTO createCurrentWeekPsr(Long projectId);
+
+    List<PsrDTO> getPsrsByWeekRange(Long projectId, String startWeek, String endWeek);
+
+    List<PsrDTO> getHistoricalPsrs(Long projectId, String week);
 }

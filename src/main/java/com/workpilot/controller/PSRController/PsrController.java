@@ -3,6 +3,7 @@ package com.workpilot.controller.PSRController;
 import com.workpilot.dto.PsrDTO.PsrDTO;
 import com.workpilot.service.PSR.PSR.PsrService;
 import com.workpilot.service.PSR.PsrExportService;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -12,7 +13,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.temporal.WeekFields;
 import java.util.List;
+import java.util.Locale;
 
 @CrossOrigin(origins = "http://localhost:4200")
 @RestController
@@ -78,4 +82,53 @@ public class PsrController {
                     .body(null);
         }
     }
-}
+
+    @PostMapping("/project/{projectId}/current-week")
+    public ResponseEntity<PsrDTO> createCurrentWeekPsr(@PathVariable Long projectId) {
+        return ResponseEntity.ok(psrService.createCurrentWeekPsr(projectId));
+    }
+
+    @GetMapping("/project/{projectId}/week-range")
+    public ResponseEntity<List<PsrDTO>> getPsrsByWeekRange(
+            @PathVariable Long projectId,
+            @RequestParam String startWeek,
+            @RequestParam String endWeek) {
+        return ResponseEntity.ok(psrService.getPsrsByWeekRange(projectId, startWeek, endWeek));
+    }
+
+    // Ajouter cette méthode utilitaire
+    private String getCurrentWeek() {
+        LocalDate now = LocalDate.now();
+        WeekFields weekFields = WeekFields.of(Locale.getDefault());
+        int weekNumber = now.get(weekFields.weekOfWeekBasedYear());
+        int year = now.getYear();
+        return String.format("%d-W%02d", year, weekNumber);
+    }
+        // Endpoint pour vérifier l'existence d'un PSR pour la semaine courante
+        @GetMapping("/project/{projectId}/check-current-week")
+        public ResponseEntity<Boolean> checkCurrentWeekPsr(@PathVariable Long projectId) {
+            return ResponseEntity.ok(psrService.existsPsrForCurrentWeek(projectId));
+        }
+
+        // Endpoint pour obtenir les PSRs historiques
+        @GetMapping("/project/{projectId}/historical")
+        public ResponseEntity<List<PsrDTO>> getHistoricalPsrs(
+                @PathVariable Long projectId,
+                @RequestParam String week) {
+            return ResponseEntity.ok(psrService.getHistoricalPsrs(projectId, week));
+        }
+
+        // Endpoint pour obtenir le PSR de la semaine courante
+        @GetMapping("/project/{projectId}/current")
+        public ResponseEntity<PsrDTO> getCurrentWeekPsr(@PathVariable Long projectId) {
+            if (psrService.existsPsrForCurrentWeek(projectId)) {
+                return ResponseEntity.ok(psrService.getPsrsByProject(projectId)
+                        .stream()
+                        .filter(psr -> psr.getWeek().equals(getCurrentWeek()))
+                        .findFirst()
+                        .orElseThrow(() -> new EntityNotFoundException("PSR non trouvé")));
+            }
+            return ResponseEntity.notFound().build();
+        }
+    }
+

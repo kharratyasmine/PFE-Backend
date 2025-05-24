@@ -30,10 +30,10 @@ public class WorkloadDetail {
     private Integer totalWorkload;
     private String note;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "devis_id", nullable = false)
-    @JsonIgnore
     private Devis devis;
+
 
     @ManyToOne
     @JoinColumn(name = "demande_id", nullable = false)

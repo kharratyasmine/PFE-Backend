@@ -21,10 +21,11 @@ public class RisksController {
     @Autowired
     private PsrService psrService;
 
-    @PostMapping
-    public ResponseEntity<RisksDTO> addRisk(@PathVariable Long psrId, @RequestBody RisksDTO RisksDTO) {
-        return ResponseEntity.ok(risksService.addRiskToPsr(psrId, RisksDTO));
+    @PostMapping("/psr/{psrId}")
+    public ResponseEntity<RisksDTO> addRisk(@PathVariable Long psrId, @RequestBody RisksDTO risksDTO) {
+        return ResponseEntity.ok(risksService.addRiskToPsr(psrId, risksDTO));
     }
+
 
     @GetMapping("/psr/{psrId}")
     public ResponseEntity<List<RisksDTO>> getRisks(@PathVariable Long psrId) {
@@ -41,5 +42,11 @@ public class RisksController {
     public List<PsrDTO> getPsrsByProject(@PathVariable Long projectId) {
         return psrService.getPsrsByProject(projectId);
     }
+
+    @PutMapping("/psr/{psrId}")
+    public ResponseEntity<RisksDTO> updateRisk(@PathVariable Long psrId, @RequestBody RisksDTO risksDTO) {
+        return ResponseEntity.ok(risksService.updateRisk(psrId, risksDTO));
+    }
+
 
 }

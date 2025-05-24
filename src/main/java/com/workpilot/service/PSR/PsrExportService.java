@@ -1,13 +1,16 @@
 package com.workpilot.service.PSR;
 
-import com.workpilot.dto.PsrDTO.PsrDTO;
+import com.workpilot.dto.PsrDTO.*;
 import org.apache.commons.compress.utils.IOUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
+import java.util.List;
 
 @Service
 public class PsrExportService {
@@ -218,25 +221,367 @@ public class PsrExportService {
                 }
             }
 
-            // Team Organization (1 seule fois)
+            // === 2. TEAM ORGANIZATION ===
+            // === FEUILLE Team Organization ===
             Sheet teamSheet = workbook.createSheet("Team Organization");
-            teamSheet.setColumnWidth(0, 25 * 256);
-            Row teamHeader = teamSheet.createRow(0);
-            String[] teamHeaders = {"Name", "Position", "Location", "Email", "Phone"};
-            for (int i = 0; i < teamHeaders.length; i++) {
-                Cell cell = teamHeader.createCell(i);
-                cell.setCellValue(teamHeaders[i]);
-                cell.setCellStyle(sectionStyle);
+
+// === Fusion titre ===
+            Row titleRow = teamSheet.createRow(0);
+            Cell titleCell = titleRow.createCell(0);
+            titleCell.setCellValue("Team Organization");
+
+            CellStyle titleStyleTeam = workbook.createCellStyle();
+            Font titleFontTeam = workbook.createFont();
+            titleFontTeam.setFontHeightInPoints((short) 16);
+            titleFontTeam.setBold(true);
+            titleFontTeam.setColor(IndexedColors.VIOLET.getIndex());
+            titleStyleTeam.setFont(titleFontTeam);
+            titleStyleTeam.setAlignment(HorizontalAlignment.CENTER);
+            titleStyleTeam.setVerticalAlignment(VerticalAlignment.CENTER);
+            teamSheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 10));
+            titleCell.setCellStyle(titleStyleTeam);
+
+// === En-têtes ===
+            String[] headersTeam = {
+                    "#", "Initial", "Member", "Role", "Project",
+                    "Planned Start Date", "Planned End Date", "Allocation (%)",
+                    "Coming From Team", "Going To Team", "Holiday"
+            };
+
+            Row headerRowTeam = teamSheet.createRow(1);
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerFont.setColor(IndexedColors.WHITE.getIndex());
+            headerStyle.setFont(headerFont);
+            headerStyle.setAlignment(HorizontalAlignment.CENTER);
+            headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            headerStyle.setFillForegroundColor(IndexedColors.LIGHT_BLUE.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyle.setBorderTop(BorderStyle.THIN);
+            headerStyle.setBorderBottom(BorderStyle.THIN);
+            headerStyle.setBorderLeft(BorderStyle.THIN);
+            headerStyle.setBorderRight(BorderStyle.THIN);
+
+            for (int i = 0; i < headersTeam.length; i++) {
+                Cell cell = headerRowTeam.createCell(i);
+                cell.setCellValue(headersTeam[i]);
+                cell.setCellStyle(headerStyle);
+                teamSheet.setColumnWidth(i, 20 * 256);
             }
 
-            // Planning sheet
-            Sheet planningSheet = workbook.createSheet("Planning");
-            planningSheet.setColumnWidth(0, 25 * 256);
-            Row rowP = planningSheet.createRow(0);
-            Cell cellP = rowP.createCell(0);
-            cellP.setCellValue("Planning Overview");
+// === Contenu ===
+            CellStyle contentStyle = workbook.createCellStyle();
+            contentStyle.setBorderTop(BorderStyle.THIN);
+            contentStyle.setBorderBottom(BorderStyle.THIN);
+            contentStyle.setBorderLeft(BorderStyle.THIN);
+            contentStyle.setBorderRight(BorderStyle.THIN);
+            contentStyle.setVerticalAlignment(VerticalAlignment.TOP);
+            contentStyle.setWrapText(true); // pour afficher plusieurs lignes (ex: Holiday)
 
-            // Export to stream
+            List<TeamOrganizationDTO> members = psr.getTeamOrganizations();
+            if (members != null) {
+                for (int i = 0; i < members.size(); i++) {
+                    TeamOrganizationDTO m = members.get(i);
+                    Row row = teamSheet.createRow(i + 2); // ligne 2 = index 1 + 1 (header)
+
+                    row.createCell(0).setCellValue(i + 1);
+                    row.createCell(1).setCellValue(m.getInitial());
+                    row.createCell(2).setCellValue(m.getFullName());
+                    row.createCell(3).setCellValue(m.getRole());
+                    row.createCell(4).setCellValue(psr.getProjectName());
+                    row.createCell(5).setCellValue(m.getPlannedStartDate() != null ? m.getPlannedStartDate().toString() : "");
+                    row.createCell(6).setCellValue(m.getPlannedEndDate() != null ? m.getPlannedEndDate().toString() : "");
+                    row.createCell(7).setCellValue(m.getAllocation());
+                    row.createCell(8).setCellValue(m.getComingFromTeam());
+                    row.createCell(9).setCellValue(m.getGoingToTeam());
+                    String holidays = String.join("\n", m.getHoliday().split(","));
+                    row.createCell(10).setCellValue(holidays);
+
+
+                    for (int j = 0; j <= 10; j++) {
+                        row.getCell(j).setCellStyle(contentStyle);
+                    }
+                }
+            }
+
+            // === 3. WEEKLY REPORT ===
+            Sheet weeklySheet = workbook.createSheet("Weekly Report");
+            weeklySheet.createRow(0).createCell(0).setCellValue("Monthly Workload By Project / Module");
+
+            // === 4. TASKS TRACKER ===
+            Sheet taskSheet = workbook.createSheet("Tasks Tracker");
+            Row taskHeader = taskSheet.createRow(0);
+            String[] taskHeaders = {"Task ID", "Project ID", "Description", "Week", "Who", "Start Date", "Estimated End Date", "Effective End Date", "Worked (MD)", "Estimated (MD)", "Remaining (MD)", "Progress (%)", "Current Status","Effort Variance" ,"Reason of deviation","Note"};
+            for (int i = 0; i < taskHeaders.length; i++) {
+                taskHeader.createCell(i).setCellValue(taskHeaders[i]);
+            }
+            List<TaskTrackerDTO> tasks = psr.getTaskTrackers();
+            if (tasks != null) {
+                for (int i = 0; i < tasks.size(); i++) {
+                    Row row = taskSheet.createRow(i + 1);
+                    TaskTrackerDTO t = tasks.get(i);
+                    row.createCell(0).setCellValue(t.getId());
+                    row.createCell(1).setCellValue(t.getProjectId());
+                    row.createCell(2).setCellValue(t.getDescription());
+                    row.createCell(3).setCellValue(t.getWeek());
+                    row.createCell(4).setCellValue(t.getWho());
+                    row.createCell(5).setCellValue(t.getStartDate().toString());
+                    row.createCell(6).setCellValue(t.getEstimatedEndDate().toString());
+                    row.createCell(7).setCellValue(t.getEffectiveEndDate().toString());
+                    row.createCell(8).setCellValue(t.getWorkedMD());
+                    row.createCell(9).setCellValue(t.getEstimatedMD());
+                    row.createCell(10).setCellValue(t.getRemainingMD());
+                    row.createCell(11).setCellValue(t.getProgress());
+                    row.createCell(12).setCellValue(t.getCurrentStatus());
+                    row.createCell(13).setCellValue(t.getEffortVariance());
+                    row.createCell(14).setCellValue(t.getDeviationReason());
+                    row.createCell(15).setCellValue(t.getNote());
+                }
+            }
+
+
+            // === Feuille RISKS ===
+
+            Sheet risksSheet = workbook.createSheet("Risks");
+            XSSFWorkbook xssfWorkbook = (XSSFWorkbook) workbook;
+// === Titre centré violet ===
+            Row titleRowRisk = risksSheet.createRow(1);
+            Cell titleCellRisk = titleRowRisk.createCell(0);
+            titleCellRisk.setCellValue("Risks");
+
+            XSSFCellStyle titleStyleRisk = (XSSFCellStyle) workbook.createCellStyle();
+            XSSFFont titleFontRisk = ((XSSFWorkbook) workbook).createFont();
+            titleFontRisk.setBold(true);
+            titleFontRisk.setFontHeightInPoints((short) 16);
+            titleFontRisk.setColor(IndexedColors.VIOLET.getIndex());
+            titleStyleRisk.setFont(titleFontRisk);
+            titleStyleRisk.setAlignment(HorizontalAlignment.CENTER);
+
+            titleCellRisk.setCellStyle(titleStyleRisk);
+            risksSheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 17)); // fusionner sur 18 colonnes
+
+// === Styles d'entêtes ===
+            XSSFFont boldFont = ((XSSFWorkbook) workbook).createFont();
+            boldFont.setBold(true);
+
+            XSSFCellStyle headerStyleRisk = ((XSSFWorkbook) workbook).createCellStyle(); // ✅ XSSFCellStyle spécifique
+            headerStyleRisk.setFont(boldFont);
+            headerStyleRisk.setFillForegroundColor(IndexedColors.LIGHT_CORNFLOWER_BLUE.getIndex());
+            headerStyleRisk.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyleRisk.setAlignment(HorizontalAlignment.CENTER);
+            headerStyleRisk.setBorderBottom(BorderStyle.THIN);
+
+            XSSFCellStyle yellowHeader = (XSSFCellStyle) workbook.createCellStyle();
+            yellowHeader.cloneStyleFrom(headerStyleRisk);
+            yellowHeader.setFillForegroundColor(IndexedColors.LIGHT_YELLOW.getIndex());
+
+            XSSFCellStyle orangeHeader = (XSSFCellStyle) workbook.createCellStyle();
+            orangeHeader.cloneStyleFrom(headerStyleRisk);
+            orangeHeader.setFillForegroundColor(IndexedColors.LIGHT_ORANGE.getIndex());
+
+            XSSFCellStyle turquoiseHeader = (XSSFCellStyle) workbook.createCellStyle();
+            turquoiseHeader.cloneStyleFrom(headerStyleRisk);
+            turquoiseHeader.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
+
+            XSSFCellStyle dataStyle = (XSSFCellStyle) workbook.createCellStyle();
+            dataStyle.setWrapText(true);
+            dataStyle.setVerticalAlignment(VerticalAlignment.TOP);
+            dataStyle.setBorderBottom(BorderStyle.THIN);
+            dataStyle.setBorderTop(BorderStyle.THIN);
+            dataStyle.setBorderLeft(BorderStyle.THIN);
+            dataStyle.setBorderRight(BorderStyle.THIN);
+
+// === Entêtes ===
+            String[] riskHeaders = {
+                    "ID", "Risk", "Origin", "Category", "Open Date", "Due Date",
+                    "Causes", "Consequences", "Applied measures",
+                    "Probability", "Gravity", "Criticality", "Measure",
+                    "Risk Treatment Decision", "Justification", "Id Action",
+                    "Risk status", "Close Date"
+            };
+// Ligne 2 (au-dessus des entêtes)
+            Row sectionRow = risksSheet.createRow(2);
+
+// Style pour les titres de section fusionnés
+            XSSFCellStyle sectionHeaderStyle = xssfWorkbook.createCellStyle();
+            XSSFFont sectionFontRisk = xssfWorkbook.createFont();
+            sectionFontRisk.setBold(true);
+            sectionHeaderStyle.setFont(sectionFontRisk);
+            sectionHeaderStyle.setAlignment(HorizontalAlignment.CENTER);
+            sectionHeaderStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+            sectionHeaderStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            sectionHeaderStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            sectionHeaderStyle.setBorderTop(BorderStyle.THIN);
+            sectionHeaderStyle.setBorderBottom(BorderStyle.THIN);
+            sectionHeaderStyle.setBorderLeft(BorderStyle.THIN);
+            sectionHeaderStyle.setBorderRight(BorderStyle.THIN);
+
+// Titres fusionnés sur les plages concernées
+            Cell riskIdCell = sectionRow.createCell(0);
+            riskIdCell.setCellValue("Risk Identification");
+            riskIdCell.setCellStyle(sectionHeaderStyle);
+            risksSheet.addMergedRegion(new CellRangeAddress(2, 2, 0, 8));
+
+            Cell analysisCell = sectionRow.createCell(9);
+            analysisCell.setCellValue("Risk analysis");
+            analysisCell.setCellStyle(sectionHeaderStyle);
+            risksSheet.addMergedRegion(new CellRangeAddress(2, 2, 9, 10));
+
+            Cell assessmentCell = sectionRow.createCell(11);
+            assessmentCell.setCellValue("Risk assessment");
+            assessmentCell.setCellStyle(sectionHeaderStyle);
+            risksSheet.addMergedRegion(new CellRangeAddress(2, 2, 11, 12));
+
+            Cell treatmentCell = sectionRow.createCell(13);
+            treatmentCell.setCellValue("Risk treatment");
+            treatmentCell.setCellStyle(sectionHeaderStyle);
+            risksSheet.addMergedRegion(new CellRangeAddress(2, 2, 13, 17));
+
+            Row headerRowRisk = risksSheet.createRow(3);
+            for (int i = 0; i < riskHeaders.length; i++) {
+                Cell cell = headerRowRisk.createCell(i);
+                cell.setCellValue(riskHeaders[i]);
+
+                if (i >= 9 && i <= 11) {
+                    cell.setCellStyle(yellowHeader); // Risk Analysis
+                } else if (i >= 12 && i <= 13) {
+                    cell.setCellStyle(orangeHeader); // Risk Assessment
+                } else if (i >= 14) {
+                    cell.setCellStyle(turquoiseHeader); // Risk Treatment
+                } else {
+                    cell.setCellStyle(headerStyleRisk); // Standard
+                }
+
+                risksSheet.setColumnWidth(i, 20 * 256); // largeur auto
+            }
+
+// === Données dynamiques ===
+            List<RisksDTO> risks = psr.getRisks();
+            if (risks != null) {
+                for (int i = 0; i < risks.size(); i++) {
+                    RisksDTO r = risks.get(i);
+                    Row row = risksSheet.createRow(i + 4); // ligne suivante
+
+                    String[] values = {
+                            String.valueOf(r.getId()), r.getDescription(), r.getOrigin(), r.getCategory(),
+                            r.getOpenDate(), r.getDueDate(), r.getCauses(), r.getConsequences(), r.getAppliedMeasures(),
+                            r.getProbability(), r.getGravity(), r.getCriticality(), r.getMeasure(),
+                            r.getRiskTreatmentDecision(), r.getJustification(), r.getIdAction(),
+                            r.getRiskStat(), r.getCloseDate()
+                    };
+
+                    for (int j = 0; j < values.length; j++) {
+                        Cell cell = row.createCell(j);
+                        cell.setCellValue(values[j] != null ? values[j] : "");
+                        cell.setCellStyle(dataStyle);
+                    }
+                }
+            }
+
+
+
+
+            // === 6. DELIVERIES ===
+            Sheet deliveriesSheet = workbook.createSheet("Deliveries");
+
+// === Style de base avec bordures ===
+            CellStyle baseStyle = workbook.createCellStyle();
+            baseStyle.setBorderTop(BorderStyle.THIN);
+            baseStyle.setBorderBottom(BorderStyle.THIN);
+            baseStyle.setBorderLeft(BorderStyle.THIN);
+            baseStyle.setBorderRight(BorderStyle.THIN);
+            baseStyle.setVerticalAlignment(VerticalAlignment.TOP);
+            baseStyle.setWrapText(true);
+            Font baseFont = workbook.createFont();
+            baseFont.setColor(IndexedColors.BLACK.getIndex());
+            baseStyle.setFont(baseFont);
+
+// === Style header (bleu avec écriture blanche) ===
+            Row deliveryHeader = deliveriesSheet.createRow(0);
+            String[] deliveryHeaders = {"ID", "Deliverable", "Description", "Version", "Planned Date", "Effective Date", "Status", "Delivery Support", "Customer Feedback"};
+
+            CellStyle headerStyleDeli = workbook.createCellStyle();
+            Font headerFontDeli = workbook.createFont();
+            headerFontDeli.setBold(true);
+            headerFontDeli.setColor(IndexedColors.WHITE.getIndex());
+            headerStyleDeli.setFont(headerFontDeli);
+            headerStyleDeli.setAlignment(HorizontalAlignment.CENTER);
+            headerStyleDeli.setVerticalAlignment(VerticalAlignment.CENTER);
+            headerStyleDeli.setFillForegroundColor(IndexedColors.BLUE.getIndex());
+            headerStyleDeli.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            headerStyleDeli.setBorderTop(BorderStyle.THIN);
+            headerStyleDeli.setBorderBottom(BorderStyle.THIN);
+            headerStyleDeli.setBorderLeft(BorderStyle.THIN);
+            headerStyleDeli.setBorderRight(BorderStyle.THIN);
+
+// Appliquer les en-têtes
+            for (int i = 0; i < deliveryHeaders.length; i++) {
+                Cell cell = deliveryHeader.createCell(i);
+                cell.setCellValue(deliveryHeaders[i]);
+                cell.setCellStyle(headerStyleDeli);
+                deliveriesSheet.setColumnWidth(i, 20 * 256);
+            }
+
+// === Style vert : Delivered + Accepted ===
+            CellStyle greenStyle = workbook.createCellStyle();
+            greenStyle.cloneStyleFrom(baseStyle);
+            greenStyle.setFillForegroundColor(IndexedColors.LIGHT_GREEN.getIndex());
+            greenStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+// === Style rouge : Delivered + Refused ===
+            CellStyle redStyle = workbook.createCellStyle();
+            redStyle.cloneStyleFrom(baseStyle);
+            redStyle.setFillForegroundColor(IndexedColors.ROSE.getIndex());
+            redStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+// === Remplissage des données ===
+            List<DeliveriesDTO> deliveries = psr.getDeliveries();
+            if (deliveries != null) {
+                for (int i = 0; i < deliveries.size(); i++) {
+                    DeliveriesDTO d = deliveries.get(i);
+                    Row row = deliveriesSheet.createRow(i + 1);
+
+                    String status = d.getStatus();
+                    String feedback = d.getCustomerFeedback();
+
+                    CellStyle rowStyle = baseStyle;
+                    if ("Delivered".equalsIgnoreCase(status)) {
+                        if ("Accepted".equalsIgnoreCase(feedback)) {
+                            rowStyle = greenStyle;
+                        } else if ("Refused".equalsIgnoreCase(feedback)) {
+                            rowStyle = redStyle;
+                        }
+                    }
+
+                    String[] values = {
+                            String.valueOf(d.getId()),
+                            d.getDeliveriesName(),
+                            d.getDescription(),
+                            d.getVersion(),
+                            d.getPlannedDate() != null ? d.getPlannedDate().toString() : "",
+                            d.getEffectiveDate() != null ? d.getEffectiveDate().toString() : "",
+                            status,
+                            d.getDeliverySupport(),
+                            feedback
+                    };
+
+                    for (int j = 0; j < values.length; j++) {
+                        Cell cell = row.createCell(j);
+                        cell.setCellValue(values[j]);
+                        cell.setCellStyle(rowStyle);
+                    }
+                }
+            }
+
+
+
+            // === 7. PLANNING === (structure simplifiée à adapter)
+            Sheet planningSheet = workbook.createSheet("Planning");
+            Row planningRow = planningSheet.createRow(0);
+            planningRow.createCell(0).setCellValue("Planning Overview");
+
+            // Export final
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             workbook.write(out);
             return new ByteArrayInputStream(out.toByteArray());

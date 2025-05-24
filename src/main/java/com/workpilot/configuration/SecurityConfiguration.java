@@ -1,5 +1,6 @@
 package com.workpilot.configuration;
 
+import io.swagger.models.HttpMethod;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -61,7 +62,9 @@ public class SecurityConfiguration {
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/scrape", "/fetch-data").permitAll()
                         .requestMatchers("/auth/refresh-token").permitAll()
+                        .requestMatchers(String.valueOf(HttpMethod.PATCH), "/users/*/approval").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // ✅ API REST sans session

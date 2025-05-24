@@ -26,7 +26,8 @@ public class TeamMemberDTO {
     private String experienceRange;
     private LocalDate StartDate;
     private LocalDate EndDate;
-    private String status; // "En poste" ou "Inactif"
+    private String status;
+    private boolean fake;
 
 
 

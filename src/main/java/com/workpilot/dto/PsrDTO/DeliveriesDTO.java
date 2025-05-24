@@ -19,4 +19,6 @@ public class DeliveriesDTO {
     private String status; // Delivered, Pending, Late
     private String deliverySupport ;
     private String customerFeedback;
+    private String week;
+    private Integer reportYear;
 }

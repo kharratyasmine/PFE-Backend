@@ -1,5 +1,6 @@
 package com.workpilot.repository.ressources;
 
+import com.workpilot.entity.ressources.Project;
 import com.workpilot.entity.ressources.ProjectTask;
 import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,4 +29,6 @@ public interface ProjectTaskRepository extends JpaRepository<ProjectTask, Long> 
     @Modifying
     @Query("DELETE FROM ProjectTask t WHERE t.project.id = :projectId")
     void deleteByProjectId(@Param("projectId") Long projectId);
+
+    List<ProjectTask> findByProject(Project project);
 }

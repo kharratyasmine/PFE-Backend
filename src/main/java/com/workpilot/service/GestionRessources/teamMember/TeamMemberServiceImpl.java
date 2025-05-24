@@ -1,19 +1,21 @@
 package com.workpilot.service.GestionRessources.teamMember;
 
 import com.workpilot.dto.GestionRessources.TeamMemberDTO;
-import com.workpilot.entity.ressources.Seniority;
-import com.workpilot.entity.ressources.Team;
-import com.workpilot.entity.ressources.TeamMember;
-import com.workpilot.entity.ressources.TeamMemberAllocation;
+import com.workpilot.entity.ressources.*;
 import com.workpilot.repository.ressources.TeamMemberAllocationRepository;
+import com.workpilot.repository.ressources.TeamMemberHistoryRepository;
 import com.workpilot.repository.ressources.TeamMemberRepository;
 import com.workpilot.repository.ressources.TeamRepository;
+import com.workpilot.service.GestionRessources.TeamMemberHistory.TeamMemberHistoryService;
+import com.workpilot.service.GestionRessources.TeamMemberHistory.TeamMemberHistoryServiceImpl;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -28,6 +30,9 @@ public class TeamMemberServiceImpl implements TeamMemberService {
 
     @Autowired
     private TeamMemberAllocationRepository teamMemberAllocationRepository;
+
+    @Autowired
+    private TeamMemberHistoryService historyService;
 
     @Override
     public List<TeamMemberDTO> getAllTeamMembers() {
@@ -76,18 +81,95 @@ public class TeamMemberServiceImpl implements TeamMemberService {
 
 
     @Override
+    @Transactional
     public TeamMemberDTO updateTeamMember(Long id, TeamMemberDTO teamMemberDTO) {
         return teamMemberRepository.findById(id)
                 .map(existingMember -> {
                     TeamMember updatedMember = convertToEntity(teamMemberDTO);
                     updatedMember.setId(existingMember.getId());
 
+                    // Sauvegarder l'historique pour chaque champ modifié
+                    if (!existingMember.getName().equals(updatedMember.getName())) {
+                        historyService.saveHistoryForField(id, "name", existingMember.getName(), updatedMember.getName(), "system");
+                    }
+                    if (!existingMember.getInitial().equals(updatedMember.getInitial())) {
+                        historyService.saveHistoryForField(id, "initial", existingMember.getInitial(), updatedMember.getInitial(), "system");
+                    }
+                    if (!existingMember.getJobTitle().equals(updatedMember.getJobTitle())) {
+                        historyService.saveHistoryForField(id, "jobTitle", existingMember.getJobTitle(), updatedMember.getJobTitle(), "system");
+                    }
+                    if (!existingMember.getRole().equals(updatedMember.getRole())) {
+                        historyService.saveHistoryForField(id, "role", existingMember.getRole().toString(), updatedMember.getRole().toString(), "system");
+                    }
+                    if (!Objects.equals(existingMember.getCost(), updatedMember.getCost())) {
+                        historyService.saveHistoryForField(id, "cost",
+                                String.valueOf(existingMember.getCost()),
+                                String.valueOf(updatedMember.getCost()),
+                                "system");
+                    }
+                    if (!Objects.equals(existingMember.getStartDate(), updatedMember.getStartDate())) {
+                        historyService.saveHistoryForField(id, "startDate",
+                                existingMember.getStartDate() != null ? existingMember.getStartDate().toString() : "",
+                                updatedMember.getStartDate() != null ? updatedMember.getStartDate().toString() : "",
+                                "system");
+                    }
+                    if (!Objects.equals(existingMember.getEndDate(), updatedMember.getEndDate())) {
+                        historyService.saveHistoryForField(id, "endDate",
+                                existingMember.getEndDate() != null ? existingMember.getEndDate().toString() : "",
+                                updatedMember.getEndDate() != null ? updatedMember.getEndDate().toString() : "",
+                                "system");
+                    }
+                    if (!Objects.equals(existingMember.getNote(), updatedMember.getNote())) {
+                        historyService.saveHistoryForField(id, "note",
+                                existingMember.getNote() != null ? existingMember.getNote() : "",
+                                updatedMember.getNote() != null ? updatedMember.getNote() : "",
+                                "system");
+                    }
+
                     // 🔥 Suggérer un rôle si pas fourni et startDate connue
                     if (updatedMember.getStartDate() != null && teamMemberDTO.getRole() == null) {
                         double exp = getYearsFromStartDate(updatedMember.getStartDate());
-                        updatedMember.setRole(suggestRole(exp));
+                        Seniority suggestedRole = suggestRole(exp);
+                        if (!suggestedRole.equals(existingMember.getRole())) {
+                            historyService.saveHistoryForField(
+                                    id,
+                                    "role",
+                                    existingMember.getRole().toString(),
+                                    suggestedRole.toString(),
+                                    "system"
+                            );
+                        }
+                        updatedMember.setRole(suggestedRole);
                     }
-                    updatedMember.setStatus(calculateStatus(updatedMember.getEndDate()));                    updatedMember = teamMemberRepository.save(updatedMember);
+
+                    // Mettre à jour le statut
+                    String newStatus = calculateStatus(updatedMember.getEndDate());
+                    if (!newStatus.equals(existingMember.getStatus())) {
+                        historyService.saveHistoryForField(
+                                id,
+                                "status",
+                                existingMember.getStatus() != null ? existingMember.getStatus() : "",
+                                newStatus,
+                                "system"
+                        );
+                    }
+                    updatedMember.setStatus(newStatus);
+
+                    // Mettre à jour l'expérience
+                    String newExperienceRange = getExperienceRange(updatedMember.getStartDate());
+                    if (!newExperienceRange.equals(existingMember.getExperienceRange())) {
+                        historyService.saveHistoryForField(
+                                id,
+                                "experienceRange",
+                                existingMember.getExperienceRange() != null ? existingMember.getExperienceRange() : "",
+                                newExperienceRange,
+                                "system"
+                        );
+                    }
+                    updatedMember.setExperienceRange(newExperienceRange);
+
+                    // Sauvegarder les modifications
+                    updatedMember = teamMemberRepository.save(updatedMember);
                     return convertToDTO(updatedMember);
                 })
                 .orElse(null);
@@ -176,12 +258,22 @@ public class TeamMemberServiceImpl implements TeamMemberService {
         teamMember.setStartDate(dto.getStartDate());
         teamMember.setEndDate(dto.getEndDate());
         teamMember.setStatus(calculateStatus(dto.getEndDate()));
-
         teamMember.setExperienceRange(getExperienceRange(teamMember.getStartDate()));
 
+        // ✅ Gérer le champ fake
+        boolean isFake = dto.isFake(); // assure-toi que ton DTO a bien un boolean getFake()
+        teamMember.setFake(isFake);
 
+        if (isFake) {
+            // ⚠️ Un seul membre fake autorisé par rôle
+            teamMemberRepository.findByRoleAndFake(String.valueOf(dto.getRole()), true).ifPresent(existing -> {
+                if (dto.getId() == null || !existing.getId().equals(dto.getId())) {
+                    throw new RuntimeException("Un membre fake existe déjà pour le rôle " + dto.getRole());
+                }
+            });
+        }
 
-        // Associer le membre à une équipe si l'ID de l'équipe est fourni
+        // ✅ Associer aux équipes si besoin
         if (dto.getTeams() != null) {
             Set<Team> teams = dto.getTeams().stream()
                     .map(id -> teamRepository.findById(id)
@@ -190,9 +282,9 @@ public class TeamMemberServiceImpl implements TeamMemberService {
             teamMember.setTeams(teams);
         }
 
-
         return teamMember;
     }
+
 
     private String calculateStatus(LocalDate endDate) {
         if (endDate == null || endDate.isAfter(LocalDate.now())) {

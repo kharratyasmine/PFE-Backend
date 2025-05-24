@@ -77,12 +77,13 @@ public class DevisExportService {
 // Table pour encadrer le texte
         XWPFTable abstractTable = document.createTable(1, 1);
         setTableWidth(abstractTable, 9000);
+        addBordersToTable(abstractTable);
         XWPFTableCell abstractCell = abstractTable.getRow(0).getCell(0);
 
         XWPFParagraph abstractTextPara = abstractCell.getParagraphs().get(0);
         XWPFRun abstractTextRun = abstractTextPara.createRun();
         abstractTextRun.setFontSize(11);
-        abstractTextRun.setText("This document is a .... for the project \"" +
+        abstractTextRun.setText("This document is a financial proposal for the project \"" +
                 devis.getProject().getName() + "\" during the period \"" +
                 devis.getCreationDate() + "\". It covers ....\".");
 
@@ -113,6 +114,7 @@ public class DevisExportService {
 // 🔷 Tableau Distribution
         XWPFTable distTable = document.createTable();
         setTableWidth(distTable, 9000);
+        addBordersToTable(distTable);
 // En-tête
         XWPFTableRow header = distTable.getRow(0);
         header.getCell(0).setText("Name");
@@ -165,6 +167,7 @@ public class DevisExportService {
 // Créer le tableau avec 4 colonnes
         XWPFTable visaTable = document.createTable();
         setTableWidth(visaTable, 9000);
+        addBordersToTable(visaTable);
 // En-tête
         XWPFTableRow headerRow = visaTable.getRow(0);
         headerRow.getCell(0).setText("Action");
@@ -201,6 +204,7 @@ public class DevisExportService {
 // 🔹 Créer le tableau principal
         XWPFTable summaryTable = document.createTable();
         setTableWidth(summaryTable, 9000);
+        addBordersToTable(summaryTable);
 
 // 🔹 Ligne d'entête "Summary"
         XWPFTableRow summaryHeader = summaryTable.getRow(0);
@@ -246,9 +250,9 @@ public class DevisExportService {
         addTableOfContents(document);
         document.createParagraph().setPageBreak(true); // saut après le sommaire
 /// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        addHeaderTable(document, devis);
 
-        addHeaderTable(document, devis); // ⬅️ Ajout de ton header personnalisé
-
+// 🔷 Titre
         XWPFParagraph historyTitle = document.createParagraph();
         historyTitle.setStyle("Heading1");
         XWPFRun titleRun = historyTitle.createRun();
@@ -258,58 +262,55 @@ public class DevisExportService {
         titleRun.setColor("2F75B5");
         titleRun.setFontSize(20);
 
+// 📄 Récupération et regroupement
         List<DevisHistory> historyList = devis.getHistory();
         if (historyList != null && !historyList.isEmpty()) {
-            int totalRows = historyList.size();
-            XWPFTable table = document.createTable(totalRows + 1, 5); // +1 for header
-            setTableWidth(table, 9000);
-
-            // En-tête
-            String[] headers = {"Version", "Modification description", "Action", "Date", "Name"};
-            XWPFTableRow head = table.getRow(0);
-            for (int i = 0; i < headers.length; i++) {
-                XWPFTableCell cell = head.getCell(i);
-                cell.setText(headers[i]);
-                applyHeaderStyle(cell);
-            }
-
-            // Regrouper par version/description (pour fusion)
+            // Groupement par version + description
             Map<String, List<DevisHistory>> grouped = historyList.stream()
                     .collect(Collectors.groupingBy(h -> h.getVersion() + "|" + h.getModificationDescription()));
 
-            int rowIndex = 1;
             for (Map.Entry<String, List<DevisHistory>> entry : grouped.entrySet()) {
-                String[] parts = entry.getKey().split("\\|");
-                String version = parts[0];
-                String description = parts[1];
-                List<DevisHistory> groupRows = entry.getValue();
-                int groupSize = groupRows.size();
+                String[] parts = entry.getKey().split("\\|", 2);
+                String version = parts.length > 0 ? parts[0] : "-";
+                String description = parts.length > 1 ? parts[1] : "-";
 
-                // Première ligne avec version + description
-                XWPFTableRow firstRow = table.getRow(rowIndex);
-                firstRow.getCell(0).setText(version);
-                firstRow.getCell(1).setText(description);
-                firstRow.getCell(2).setText(groupRows.get(0).getAction());
-                firstRow.getCell(3).setText(groupRows.get(0).getDate() != null ? groupRows.get(0).getDate().toString() : "");
-                firstRow.getCell(4).setText(groupRows.get(0).getName());
+                List<DevisHistory> rows = entry.getValue();
 
-                for (int i = 1; i < groupSize; i++) {
-                    rowIndex++;
-                    XWPFTableRow row = table.getRow(rowIndex);
-                    row.getCell(2).setText(groupRows.get(i).getAction());
-                    row.getCell(3).setText(groupRows.get(i).getDate() != null ? groupRows.get(i).getDate().toString() : "");
-                    row.getCell(4).setText(groupRows.get(i).getName());
+                // ➕ Création du tableau (header + n lignes)
+                XWPFTable table = document.createTable(rows.size() + 1, 5); // Version + Desc + Action + Date + Name
+                setTableWidth(table, 9000);
+                addBordersToTable(table);
+
+                // 🔹 En-tête
+                String[] headers = {"Version", "Modification description", "Action", "Date", "Name"};
+                XWPFTableRow headerHis = table.getRow(0);
+                for (int i = 0; i < headers.length; i++) {
+                    headerHis.getCell(i).setText(headers[i]);
+                    applyHeaderStyle(headerHis.getCell(i)); // Gras + fond bleu
                 }
 
-                // Fusion verticale version + description
-                if (groupSize > 1) {
-                    mergeCellsVertically(table, 0, rowIndex - groupSize + 1, rowIndex);
-                    mergeCellsVertically(table, 1, rowIndex - groupSize + 1, rowIndex);
+                // 🔹 Remplissage des lignes
+                for (int i = 0; i < rows.size(); i++) {
+                    XWPFTableRow row = table.getRow(i + 1);
+                    while (row.getTableCells().size() < 5) row.addNewTableCell();
+
+                    row.getCell(2).setText(rows.get(i).getAction());
+                    row.getCell(3).setText(rows.get(i).getDate() != null ? rows.get(i).getDate().toString() : "-");
+                    row.getCell(4).setText(rows.get(i).getName() != null ? rows.get(i).getName() : "-");
                 }
 
-                rowIndex++;
+                // 🔹 Fusion verticale des colonnes "Version" et "Modification"
+                if (rows.size() > 1) {
+                    mergeCellsVertically(table, 0, 1, rows.size());
+                    mergeCellsVertically(table, 1, 1, rows.size());
+                }
+
+                // ➕ Écriture dans la première ligne
+                table.getRow(1).getCell(0).setText(version);
+                table.getRow(1).getCell(1).setText(description);
             }
         }
+
 
 /// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         document.createParagraph().setPageBreak(true); // saut après le sommaire
@@ -337,6 +338,8 @@ public class DevisExportService {
 // 🔹 Table Applicable Documents
         XWPFTable applicableTable = document.createTable();
         setTableWidth(applicableTable, 9000);
+        addBordersToTable(applicableTable);
+
 
 // En-tête
         XWPFTableRow appHeader = applicableTable.getRow(0);
@@ -369,6 +372,9 @@ public class DevisExportService {
 // 🔹 Table Reference Documents
         XWPFTable referenceTable = document.createTable();
         setTableWidth(referenceTable, 9000);
+        addBordersToTable(referenceTable);
+
+
 
 // En-tête
         XWPFTableRow refHeader = referenceTable.getRow(0);
@@ -434,7 +440,7 @@ public class DevisExportService {
         addHeaderTable(document, devis); // ⬅️ Ajout de ton header personnalisé
         // 📊 Workload Proposal
 
-        // 📌 SECTION 3 - Workload
+// 📌 SECTION 3 - Workload
         XWPFParagraph WorkloadTitle = document.createParagraph();
         WorkloadTitle.setStyle("Heading1");
         XWPFRun workloadRun = WorkloadTitle.createRun();
@@ -444,7 +450,6 @@ public class DevisExportService {
         workloadRun.setColor("2F75B5");
         workloadRun.setFontSize(20);
 
-// 🔹 3.2 Project Scope
         XWPFParagraph WorkloadEstimationTitle = document.createParagraph();
         WorkloadEstimationTitle.setStyle("Heading2");
         XWPFRun WorkloadEstimationRun = WorkloadEstimationTitle.createRun();
@@ -461,40 +466,106 @@ public class DevisExportService {
         WorkloadDetailsRun.setColor("2F75B5");
         WorkloadDetailsRun.setFontSize(15);
 
+        XWPFParagraph detailsParaWor = document.createParagraph();
+        detailsParaWor.setSpacingBefore(200);
+        XWPFRun detailsDescWor = detailsParaWor.createRun();
+        detailsDescWor.setFontSize(11);
+        detailsDescWor.setText("The table below describes the estimated workload per month:");
+
+
         XWPFTable workloadTable = document.createTable();
         setTableWidth(workloadTable, 9000);
+        addBordersToTable(workloadTable);
         XWPFTableRow wHeader = workloadTable.getRow(0);
         wHeader.getCell(0).setText("Period");
         wHeader.addNewTableCell().setText("Estimated workload per Resource (Man/day)");
         wHeader.addNewTableCell().setText("Public Holidays");
         wHeader.addNewTableCell().setText("Number of Resources");
         wHeader.addNewTableCell().setText("Total Estimated Workload");
+        wHeader.addNewTableCell().setText("Note");
         colorTableHeader(wHeader);
 
         for (WorkloadDetail wl : devis.getWorkloadDetails()) {
             XWPFTableRow row = workloadTable.createRow();
-            row.getCell(0).setText(wl.getPeriod());
-            row.getCell(1).setText(String.valueOf(wl.getEstimatedWorkload()));
-            row.getCell(2).setText(String.valueOf(wl.getPublicHolidays()));
-            row.getCell(3).setText(String.valueOf(wl.getNumberOfResources()));
-            row.getCell(4).setText(String.valueOf(wl.getTotalEstimatedWorkload()));
+            while (row.getTableCells().size() < 6) row.addNewTableCell();
 
+            row.getCell(0).setText(wl.getPeriod() != null ? wl.getPeriod() : "-");
+            row.getCell(1).setText(wl.getEstimatedWorkload() != null ? wl.getEstimatedWorkload().toString() : "0");
+            row.getCell(2).setText(wl.getPublicHolidays() != null ? wl.getPublicHolidays().toString() : "0");
+            row.getCell(3).setText(wl.getNumberOfResources() != null ? wl.getNumberOfResources().toString() : "0");
+            row.getCell(4).setText(wl.getTotalEstimatedWorkload() != null ? wl.getTotalEstimatedWorkload().toString() : "0");
+            row.getCell(5).setText(wl.getNote() != null ? wl.getNote() : "-");
         }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        int totalWorkload = devis.getWorkloadDetails().stream()
+                .mapToInt(w -> w.getTotalEstimatedWorkload() != null ? w.getTotalEstimatedWorkload() : 0)
+                .sum();
+
+        XWPFTableRow totalRow = workloadTable.createRow();
+        while (totalRow.getTableCells().size() < 6) totalRow.addNewTableCell();
+        mergeCellsHorizontally(workloadTable, workloadTable.getNumberOfRows() - 1, 0, 5);
+
+        XWPFTableCell totalCell = totalRow.getCell(0);
+        XWPFRun totalRun = totalCell.getParagraphs().get(0).createRun();
+        totalRun.setText("Total général : " + totalWorkload);
+        totalRun.setBold(true);
+        colorTableRow(totalRow, "BDD7EE");
+
+        XWPFParagraph tableLegendWork = document.createParagraph();
+        tableLegendWork.setAlignment(ParagraphAlignment.CENTER);
+
+        XWPFRun legendRunWork = tableLegendWork.createRun();
+        legendRunWork.setBold(true);
+        legendRunWork.setFontSize(11);
+        legendRunWork.setText("Table 1 : Workload Detail");
+
+
+        // 📌 4.1.4 Weekly and Monthly Reporting
+
+// 4.1.4.1 Weekly Project Status Report (PSR)
+        XWPFParagraph psrTitle = document.createParagraph();
+        psrTitle.setStyle("Heading4");
+        XWPFRun psrRun = psrTitle.createRun();
+        psrRun.setText("4.1.4.1\tWeekly Project Status Report (PSR)");
+        psrRun.setItalic(true);
+        psrRun.setColor("2F75B5");
+        psrRun.setFontSize(12);
+
+        XWPFParagraph psrText = document.createParagraph();
+        XWPFRun psrContent = psrText.createRun();
+        psrContent.setFontSize(11);
+        psrContent.setText("A weekly project status report will be sent to Customer name for project tracking and monitoring. "
+                + "The PSR will include an overall status of the project (Progress, action plan, risks …) on a weekly basis, "
+                + "as well as the workload of the performed tasks during the specific week.");
+
+// 4.1.4.2 Monthly Dashboard
+        XWPFParagraph dashTitle = document.createParagraph();
+        dashTitle.setStyle("Heading4");
+        XWPFRun dashRun = dashTitle.createRun();
+        dashRun.setText("4.1.4.2\tMonthly Dashboard");
+        dashRun.setItalic(true);
+        dashRun.setColor("2F75B5");
+        dashRun.setFontSize(12);
+
+        XWPFParagraph dashText = document.createParagraph();
+        XWPFRun dashContent = dashText.createRun();
+        dashContent.setFontSize(11);
+        dashContent.setText("A monthly Dashboard will be sent to Customer name for tracking the effective working days per resource. "
+                + "The Monthly dashboard is used to monitor the effective working days versus the initial planned budget.");
+
+
+// 📌 SECTION 4 - Financial Proposal
         document.createParagraph().setPageBreak(true); // saut après le sommaire
         addHeaderTable(document, devis); // ⬅️ Ajout de ton header personnalisé
-
         XWPFParagraph finanTitle = document.createParagraph();
         finanTitle.setStyle("Heading1");
         XWPFRun finanRun = finanTitle.createRun();
-        finanRun.setText("5\n FINANCIAL PROPOSAL");
+        finanRun.setText("5\nFINANCIAL PROPOSAL");
         finanRun.setBold(true);
         finanRun.setItalic(true);
         finanRun.setColor("2F75B5");
         finanRun.setFontSize(20);
 
-        // 🔹 3.2 Project Scope
         XWPFParagraph DetailsTitle = document.createParagraph();
         DetailsTitle.setStyle("Heading2");
         XWPFRun DetailsRun = DetailsTitle.createRun();
@@ -503,26 +574,58 @@ public class DevisExportService {
         DetailsRun.setColor("2F75B5");
         DetailsRun.setFontSize(15);
 
+        XWPFParagraph detailsPara = document.createParagraph();
+        detailsPara.setSpacingBefore(200);
+        XWPFRun detailsDesc = detailsPara.createRun();
+        detailsDesc.setFontSize(11);
+        detailsDesc.setText("The table below describes the project development and management workload costs detailed by resource types and project phases.");
+
         XWPFTable financeTable = document.createTable();
         setTableWidth(financeTable, 9000);
+        addBordersToTable(financeTable);
         XWPFTableRow fHeader = financeTable.getRow(0);
         fHeader.getCell(0).setText("Position");
-        fHeader.addNewTableCell().setText("Workload");
-        fHeader.addNewTableCell().setText("Daily Cost");
-        fHeader.addNewTableCell().setText("Total Cost");
+        fHeader.addNewTableCell().setText("Total Workload (Man/Day) / Type");
+        fHeader.addNewTableCell().setText("Daily cost (Euro) / Type");
+        fHeader.addNewTableCell().setText("Total cost (Euro) / Type");
         colorTableHeader(fHeader);
 
+        BigDecimal totalCost = BigDecimal.ZERO;
         for (FinancialDetail fd : devis.getFinancialDetails()) {
             XWPFTableRow row = financeTable.createRow();
-            row.getCell(0).setText(fd.getPosition());
-            row.getCell(1).setText(String.valueOf(fd.getWorkload()));
-            row.getCell(2).setText(fd.getDailyCost().toPlainString());
-            row.getCell(3).setText(fd.getTotalCost().toPlainString());
+            while (row.getTableCells().size() < 4) row.addNewTableCell();
+
+            row.getCell(0).setText(fd.getPosition() != null ? fd.getPosition() : "-");
+            row.getCell(1).setText(fd.getWorkload() != null ? fd.getWorkload().toString() : "0");
+            row.getCell(2).setText(fd.getDailyCost() != null ? fd.getDailyCost().toPlainString() : "0.00");
+            row.getCell(3).setText(fd.getTotalCost() != null ? fd.getTotalCost().toPlainString() : "0.00");
+
+            if (fd.getTotalCost() != null) {
+                totalCost = totalCost.add(fd.getTotalCost());
+            }
         }
 
-        // 🧾 Invoicing Proposal
+        XWPFTableRow totalCostRow = financeTable.createRow();
+        while (totalCostRow.getTableCells().size() < 4) totalCostRow.addNewTableCell();
+        mergeCellsHorizontally(financeTable, financeTable.getNumberOfRows() - 1, 0, 3);
 
-// 🔹 3.2 Project Scope
+        XWPFTableCell totalCostCell = totalCostRow.getCell(0);
+        XWPFRun costRun = totalCostCell.getParagraphs().get(0).createRun();
+        costRun.setBold(true);
+        costRun.setText("Total (Euros) : " + totalCost.toPlainString());
+        colorTableRow(totalCostRow, "BDD7EE");
+
+        XWPFParagraph tableLegend = document.createParagraph();
+        tableLegend.setAlignment(ParagraphAlignment.CENTER);
+
+        XWPFRun legendRun = tableLegend.createRun();
+        legendRun.setBold(true);
+        legendRun.setFontSize(11);
+        legendRun.setText("Table 3 : Financial Estimation");
+
+
+
+// 📌 SECTION 5.3 - Invoicing
         XWPFParagraph InvoicingTitle = document.createParagraph();
         InvoicingTitle.setStyle("Heading2");
         XWPFRun InvoicingRun = InvoicingTitle.createRun();
@@ -531,21 +634,59 @@ public class DevisExportService {
         InvoicingRun.setColor("2F75B5");
         InvoicingRun.setFontSize(15);
 
+        XWPFParagraph paragraph = document.createParagraph();
+        paragraph.setSpacingBefore(200); // espace avant
+        paragraph.setSpacingAfter(200);  // espace après
+        paragraph.setAlignment(ParagraphAlignment.LEFT); // ou CENTER
+
+        XWPFRun run = paragraph.createRun();
+        run.setText("Dates and details of project invoicing are as follows:.");
+        run.setFontSize(12);
+        run.setFontFamily("Calibri");
+
 
         XWPFTable invoiceTable = document.createTable();
         setTableWidth(invoiceTable, 9000);
-        XWPFTableRow iHeader = invoiceTable.getRow(0);
-        iHeader.getCell(0).setText("Description");
-        iHeader.addNewTableCell().setText("Date");
-        iHeader.addNewTableCell().setText("Amount");
-        colorTableHeader(iHeader);
+        XWPFTableRow headerInvoi = invoiceTable.getRow(0);
+        headerInvoi.getCell(0).setText("N°");
+        headerInvoi.addNewTableCell().setText("Description");
+        headerInvoi.addNewTableCell().setText("Invoicing Date");
+        headerInvoi.addNewTableCell().setText("Amount");
+        colorTableHeader(headerInvoi);
 
+        int index = 1;
+        BigDecimal totalAmount = BigDecimal.ZERO;
         for (InvoicingDetail inv : devis.getInvoicingDetails()) {
             XWPFTableRow row = invoiceTable.createRow();
-            row.getCell(0).setText(inv.getDescription());
-            row.getCell(1).setText(inv.getInvoicingDate().toString());
-            row.getCell(2).setText(inv.getAmount().toPlainString());
+            row.getCell(0).setText(String.format("%02d", index++));
+            row.getCell(1).setText(inv.getDescription());
+            row.getCell(2).setText(inv.getInvoicingDate().toString());
+            row.getCell(3).setText(inv.getAmount().toPlainString());
+
+            if (inv.getAmount() != null) {
+                totalAmount = totalAmount.add(inv.getAmount());
+            }
         }
+
+        XWPFTableRow totalRowInvoi = invoiceTable.createRow();
+        while (totalRowInvoi.getTableCells().size() < 4) totalRowInvoi.addNewTableCell();
+        mergeCellsHorizontally(invoiceTable, invoiceTable.getNumberOfRows() - 1, 0, 2);
+
+        XWPFTableCell totalInvCell = totalRowInvoi.getCell(0);
+        XWPFRun invRun = totalInvCell.getParagraphs().get(0).createRun();
+        invRun.setBold(true);
+        invRun.setText("Total Cost : " + totalAmount.toPlainString());
+        colorTableRow(totalRowInvoi, "BDD7EE");
+
+
+
+        XWPFParagraph tableLegendInvo = document.createParagraph();
+        tableLegendInvo.setAlignment(ParagraphAlignment.CENTER);
+
+        XWPFRun legendRunInvo = tableLegendInvo.createRun();
+        legendRunInvo.setBold(true);
+        legendRunInvo.setFontSize(11);
+        legendRunInvo.setText("Table 4 : Invoicing Details");
 
 
         // 📌 Footer
@@ -615,6 +756,7 @@ public class DevisExportService {
     private void addHeaderTable(XWPFDocument document, Devis devis) {
         XWPFTable headerTable = document.createTable(1, 3);
         setTableWidth(headerTable, 9000);
+        addBordersToTable(headerTable);
 
         // Colonne 1 : Logo
         XWPFTableCell logoCell = headerTable.getRow(0).getCell(0);
@@ -661,24 +803,32 @@ public class DevisExportService {
     }
 
     private void addTableOfContents(XWPFDocument document) {
+        // Titre "Summary"
         XWPFParagraph tocTitle = document.createParagraph();
         tocTitle.setAlignment(ParagraphAlignment.CENTER);
-        XWPFRun run = tocTitle.createRun();
-        run.setText("Summary");
-        run.setBold(true);
-        run.setItalic(true);
-        run.setFontSize(14);
-        run.setColor("2F75B5");
+        XWPFRun titleRun = tocTitle.createRun();
+        titleRun.setText("Summary");
+        titleRun.setBold(true);
+        titleRun.setItalic(true);
+        titleRun.setFontSize(14);
+        titleRun.setColor("2F75B5");
 
-        XWPFParagraph paragraph = document.createParagraph();
-        CTSimpleField toc = paragraph.getCTP().addNewFldSimple();
-        toc.setInstr("TOC \\o \"1-3\" \\h \\z \\u");
-        toc.setDirty("true");
+        // Paragraphe contenant le champ TOC
+        XWPFParagraph tocPara = document.createParagraph();
+        tocPara.setAlignment(ParagraphAlignment.LEFT);
 
-        XWPFRun tocRun = paragraph.createRun();
-        tocRun.setFontSize(12);
+        // Champ TOC (table of contents)
+        CTSimpleField tocField = tocPara.getCTP().addNewFldSimple();
+        tocField.setInstr("TOC \\o \"1-3\" \\h \\z \\u");
+        tocField.setDirty("true");
+
+        // Texte qui s'affiche avant mise à jour par Word
+        XWPFRun tocRun = tocPara.createRun();
         tocRun.setText("Table of Contents");
+        tocRun.setFontSize(12);
+        tocRun.setItalic(true);
     }
+
     private void mergeCellsVertically(XWPFTable table, int col, int fromRow, int toRow) {
         for (int rowIndex = fromRow; rowIndex <= toRow; rowIndex++) {
             XWPFTableCell cell = table.getRow(rowIndex).getCell(col);
@@ -695,6 +845,47 @@ public class DevisExportService {
         XWPFParagraph para = cell.getParagraphs().get(0);
         XWPFRun run = para.createRun();
         run.setBold(true);
+    }
+    private void addBordersToTable(XWPFTable table) {
+        CTTblPr tblPr = table.getCTTbl().getTblPr() == null ? table.getCTTbl().addNewTblPr() : table.getCTTbl().getTblPr();
+        CTTblBorders borders = tblPr.isSetTblBorders() ? tblPr.getTblBorders() : tblPr.addNewTblBorders();
+
+        CTBorder border = borders.addNewTop();
+        border.setVal(STBorder.SINGLE);
+        border.setSz(BigInteger.valueOf(4));
+        border.setColor("000000");
+
+        border = borders.addNewBottom();
+        border.setVal(STBorder.SINGLE);
+        border.setSz(BigInteger.valueOf(4));
+        border.setColor("000000");
+
+        border = borders.addNewLeft();
+        border.setVal(STBorder.SINGLE);
+        border.setSz(BigInteger.valueOf(4));
+        border.setColor("000000");
+
+        border = borders.addNewRight();
+        border.setVal(STBorder.SINGLE);
+        border.setSz(BigInteger.valueOf(4));
+        border.setColor("000000");
+
+        border = borders.addNewInsideH();
+        border.setVal(STBorder.SINGLE);
+        border.setSz(BigInteger.valueOf(4));
+        border.setColor("000000");
+
+        border = borders.addNewInsideV();
+        border.setVal(STBorder.SINGLE);
+        border.setSz(BigInteger.valueOf(4));
+        border.setColor("000000");
+    }
+    private void colorTableRow(XWPFTableRow row, String colorHex) {
+        for (XWPFTableCell cell : row.getTableCells()) {
+            CTTcPr tcPr = cell.getCTTc().isSetTcPr() ? cell.getCTTc().getTcPr() : cell.getCTTc().addNewTcPr();
+            CTShd ctshd = tcPr.isSetShd() ? tcPr.getShd() : tcPr.addNewShd();
+            ctshd.setFill(colorHex); // ex: "BDD7EE"
+        }
     }
 
 }

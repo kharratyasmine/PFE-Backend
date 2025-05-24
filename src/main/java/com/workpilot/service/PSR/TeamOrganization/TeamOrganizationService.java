@@ -10,4 +10,6 @@ public interface TeamOrganizationService {
     TeamOrganizationDTO updateTeamOrganization(Long id, TeamOrganizationDTO dto);
     void deleteTeamOrganization(Long id);
     List<TeamOrganizationDTO> getAllProjectMembersForPsr(Long psrId);
+
+    List<TeamOrganizationDTO> getTeamByPsrIdAndWeek(Long psrId, String week);
 }

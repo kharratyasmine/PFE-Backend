@@ -6,6 +6,7 @@ import com.workpilot.entity.ressources.*;
 import com.workpilot.repository.ressources.*;
 import com.workpilot.service.GestionRessources.PlannedWorkloadMember.PlannedWorkloadMemberService;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -89,8 +90,18 @@ public class TeamServiceImpl implements TeamService {
 
         if (team.getMembers() != null) {
             for (TeamMember member : team.getMembers()) {
-                List<TeamMemberAllocation> allocations = teamMemberAllocationRepository.findByTeamMemberId(member.getId());
-                allocations.forEach(teamMemberAllocationRepository::delete);
+                List<TeamMemberAllocation> allocations = teamMemberAllocationRepository
+                        .findAllByTeamMemberIdAndTeamId(member.getId(), team.getId());
+
+                for (TeamMemberAllocation allocation : allocations) {
+                    // Supprimer aussi les workloads liés à cette allocation
+                    plannedWorkloadMemberService.deleteWorkloadsByProjectAndMember(
+                            allocation.getProject().getId(),
+                            allocation.getTeamMember().getId()
+                    );
+                    teamMemberAllocationRepository.delete(allocation);
+                }
+
                 member.getTeams().remove(team);
                 teamMemberRepository.save(member);
             }
@@ -122,15 +133,16 @@ public class TeamServiceImpl implements TeamService {
     }
 
     @Override
+    @Transactional
     public void removeMemberFromTeam(Long teamId, Long memberId) {
         Team team = teamRepository.findById(teamId)
                 .orElseThrow(() -> new RuntimeException("Équipe non trouvée"));
         TeamMember member = teamMemberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Membre non trouvé"));
 
+        // 1. Suppression des tâches assignées
         for (Project project : team.getProjects()) {
             List<TaskAssignment> taskAssignments = taskAssignmentRepository.findByTeamMemberId(memberId);
-
             for (TaskAssignment taskAssignment : taskAssignments) {
                 if (taskAssignment.getTask().getProject().equals(project)) {
                     taskAssignmentRepository.delete(taskAssignment);
@@ -138,17 +150,26 @@ public class TeamServiceImpl implements TeamService {
             }
         }
 
+        // 2. Suppression des allocations et des planned workloads
         List<TeamMemberAllocation> allocations = teamMemberAllocationRepository
                 .findAllByTeamMemberIdAndTeamId(memberId, teamId);
+
+        for (TeamMemberAllocation allocation : allocations) {
+            // Supprimer les planned workloads pour ce projet
+            plannedWorkloadMemberService.deleteWorkloadsByProjectAndMember(
+                    allocation.getProject().getId(),
+                    memberId
+            );
+        }
         teamMemberAllocationRepository.deleteAll(allocations);
 
+        // 3. Mise à jour des relations
         team.getMembers().remove(member);
         member.getTeams().remove(team);
 
         teamRepository.save(team);
         teamMemberRepository.save(member);
     }
-
     @Override
     public List<TeamMemberDTO> getMembersOfTeam(Long teamId) {
         Team team = teamRepository.findById(teamId)

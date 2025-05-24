@@ -14,7 +14,13 @@ import java.time.LocalDate;
 @Entity
 @Getter
 @Setter
-@Table(name = "work_entries")
+@Table(
+        name = "work_entry",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"member_id", "task_id", "date"})
+        }
+)
+
 public class WorkEntry {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

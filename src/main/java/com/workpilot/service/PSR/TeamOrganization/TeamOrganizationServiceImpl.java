@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -28,10 +27,6 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
 
     @Autowired
     private TeamMemberAllocationRepository allocationRepository;
-
-    /**
-     * Retourne toutes les organisations d’équipe (sans filtrage).
-     */
     @Override
     public List<TeamOrganizationDTO> getAll() {
         return teamOrganizationRepository.findAll()
@@ -39,10 +34,6 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
-
-    /**
-     * Retourne toutes les équipes associées à un PSR spécifique.
-     */
     @Override
     public List<TeamOrganizationDTO> getTeamByPsrId(Long psrId) {
         return teamOrganizationRepository.findByPsrId(psrId)
@@ -50,10 +41,6 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
-
-    /**
-     * Crée une nouvelle organisation d’équipe pour un PSR donné.
-     */
     @Override
     public TeamOrganizationDTO createTeamOrganization(Long psrId, TeamOrganizationDTO dto) {
         Psr psr = psrRepository.findById(psrId)
@@ -63,10 +50,6 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
         entity.setPsr(psr);
         return convertToDTO(teamOrganizationRepository.save(entity));
     }
-
-    /**
-     * Met à jour une organisation d’équipe existante.
-     */
     @Override
     public TeamOrganizationDTO updateTeamOrganization(Long id, TeamOrganizationDTO dto) {
         TeamOrganization entity = teamOrganizationRepository.findById(id)
@@ -75,13 +58,10 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
         updateEntityFromDTO(entity, dto);
         return convertToDTO(teamOrganizationRepository.save(entity));
     }
-
     @Override
     public void deleteTeamOrganization(Long id) {
         teamOrganizationRepository.deleteById(id);
     }
-
-
     private TeamOrganizationDTO convertToDTO(TeamOrganization entity) {
         TeamOrganizationDTO dto = new TeamOrganizationDTO();
         dto.setId(entity.getId());
@@ -104,7 +84,6 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
         updateEntityFromDTO(entity, dto);
         return entity;
     }
-
     private void updateEntityFromDTO(TeamOrganization entity, TeamOrganizationDTO dto) {
         entity.setFullName(dto.getFullName());
         entity.setInitial(dto.getInitial());
@@ -118,94 +97,64 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
         entity.setHoliday(dto.getHoliday());
         entity.setTeamName(dto.getTeamName());
     }
-
-    /**
-     * Récupère tous les membres du projet associé à un PSR avec les dates de la demande.
-     */
     @Override
     public List<TeamOrganizationDTO> getAllProjectMembersForPsr(Long psrId) {
-        // Récupérer le PSR par son ID
         Psr psr = psrRepository.findById(psrId)
                 .orElseThrow(() -> new EntityNotFoundException("PSR not found with ID: " + psrId));
 
-        // Récupérer le projet associé au PSR
         Project project = psr.getProject();
         if (project == null) {
             throw new EntityNotFoundException("No project linked to PSR with ID: " + psrId);
         }
 
-        // Initialiser les dates avec celles du projet par défaut
         LocalDate startDate = project.getStartDate();
         LocalDate endDate = project.getEndDate();
 
-        // Vérifier si le projet a des demandes associées
         if (project.getDemandes() != null && !project.getDemandes().isEmpty()) {
-            // Utiliser simplement la première demande du projet
-            Demande demandeAssociee = project.getDemandes().get(0);
-
-            // Si on a trouvé une demande associée, utiliser ses dates
-            if (demandeAssociee != null) {
-                if (demandeAssociee.getDateDebut() != null) {
-                    startDate = demandeAssociee.getDateDebut();
-                }
-                if (demandeAssociee.getDateFin() != null) {
-                    endDate = demandeAssociee.getDateFin();
-                }
-            }
+            Demande demande = project.getDemandes().get(0);
+            if (demande.getDateDebut() != null) startDate = demande.getDateDebut();
+            if (demande.getDateFin() != null) endDate = demande.getDateFin();
         }
 
-        // Liste qui va contenir les membres d'équipe
-        List<TeamOrganizationDTO> members = new ArrayList<>();
+        List<TeamOrganizationDTO> result = new ArrayList<>();
 
-        // Parcourir toutes les équipes du projet
         for (Team team : project.getTeams()) {
-            // Parcourir tous les membres de chaque équipe
             for (TeamMember member : team.getMembers()) {
                 TeamOrganizationDTO dto = new TeamOrganizationDTO();
 
-                // Informations de base du membre
-                dto.setId(member.getId());
                 dto.setFullName(member.getName());
                 dto.setInitial(member.getInitial());
                 dto.setRole(member.getRole() != null ? member.getRole().name() : "");
                 dto.setProject(project.getName());
-
-                // Définir les dates planifiées (de la demande ou du projet)
                 dto.setPlannedStartDate(startDate);
                 dto.setPlannedEndDate(endDate);
-
-                // Calculer l'allocation du membre pour ce projet et cette équipe
                 dto.setAllocation(getAllocationForMemberAndProject(member.getId(), project.getId(), team.getId()));
 
-                // Déterminer les équipes auxquelles le membre appartient dans ce projet
-                String teamsJoined = project.getTeams().stream()
-                        .filter(t -> t.getMembers().contains(member))
-                        .map(Team::getName)
-                        .distinct()
-                        .collect(Collectors.joining(", "));
+                String teamName = team.getName();
+                dto.setComingFromTeam("");
+                dto.setGoingToTeam("");
+                dto.setTeamName(teamName);
 
-                dto.setComingFromTeam(teamsJoined);
-                dto.setGoingToTeam(""); // Champ laissé vide par défaut
-
-                // Gestion des congés
                 List<String> holidays = member.getHoliday();
-                String holidayCount = holidays != null ? String.valueOf(holidays.size()) : "0";
-                dto.setHoliday(holidayCount);
+                dto.setHoliday(holidays != null ? String.join(", ", holidays) : "");
 
+                // ✅ convert DTO to entity and link PSR
+                TeamOrganization entity = convertToEntity(dto);
+                entity.setPsr(psr);
 
-                // Nom de l'équipe actuelle
-                dto.setTeamName(team.getName());
+                // ✅ vérifier doublon : on évite de créer si déjà enregistré
+                boolean alreadyExists = teamOrganizationRepository.existsByPsrIdAndInitialAndFullName(psrId, dto.getInitial(), dto.getFullName());
+                if (!alreadyExists) {
+                    teamOrganizationRepository.save(entity);
+                }
 
-                // Ajouter le DTO à la liste
-                members.add(dto);
+                result.add(convertToDTO(entity));
             }
         }
 
-        return members;
+        return result;
     }
-    /**
-     * Récupère l'allocation d'un membre pour un projet et une équipe spécifiques.
-     */
+
     private String getAllocationForMemberAndProject(Long memberId, Long projectId, Long teamId) {
         if (memberId == null || projectId == null || teamId == null) {
             return "0%";
@@ -225,5 +174,45 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
 
         return "0%";
     }
-}
 
+        @Override
+        public List<TeamOrganizationDTO> getTeamByPsrIdAndWeek(Long psrId, String week) {
+            // 1. Vérifier si le PSR existe
+            Psr psr = psrRepository.findById(psrId)
+                    .orElseThrow(() -> new EntityNotFoundException("PSR not found with ID: " + psrId));
+
+            // 2. Récupérer tous les membres de l'équipe pour ce PSR
+            List<TeamOrganization> allTeamMembers = teamOrganizationRepository.findByPsrId(psrId);
+
+            // 3. Filtrer pour ne garder que les données de la semaine spécifiée
+            List<TeamOrganization> weekSpecificData = allTeamMembers.stream()
+                    .filter(member -> week.equals(member.getWeek()))
+                    .collect(Collectors.toList());
+
+            // 4. Si aucun membre n'a de données pour cette semaine, on récupère les membres de base
+            if (weekSpecificData.isEmpty()) {
+                List<TeamOrganizationDTO> baseMembers = getAllProjectMembersForPsr(psrId);
+
+                // 5. Pour chaque membre, on crée une entrée pour cette semaine
+                for (TeamOrganizationDTO member : baseMembers) {
+                    member.setWeek(week);
+                    member.setReportYear(Integer.parseInt(week.split("-")[0]));
+
+                    // 6. Sauvegarder les données pour cette semaine
+                    TeamOrganization entity = convertToEntity(member);
+                    entity.setPsr(psr);
+                    entity.setWeek(week);
+                    entity.setReportYear(Integer.parseInt(week.split("-")[0]));
+                    teamOrganizationRepository.save(entity);
+                }
+
+                return baseMembers;
+            }
+
+            // 7. Retourner les données filtrées pour cette semaine
+            return weekSpecificData.stream()
+                    .map(this::convertToDTO)
+                    .collect(Collectors.toList());
+        }
+
+}

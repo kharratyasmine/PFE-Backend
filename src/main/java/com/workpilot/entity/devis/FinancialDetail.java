@@ -34,8 +34,9 @@ public class FinancialDetail {
     private Demande demande;
 
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "devis_id", nullable = false)
     @JsonIgnore
     private Devis devis;
+
 }

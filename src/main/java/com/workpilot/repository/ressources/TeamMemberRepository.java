@@ -23,5 +23,7 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
     Optional<TeamMember> findByFakeTrueAndRole(Seniority role);
     boolean existsByFakeTrueAndRole(Seniority role);
 
+    Optional<TeamMember> findByRoleAndFake(String role, boolean fake);
+
 
 }

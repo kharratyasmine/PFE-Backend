@@ -95,7 +95,15 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
                 existing.addAll(personalHolidays);
                 member.setHoliday(new ArrayList<>(existing));
 
-                assignmentRepository.save(assignment);
+                Optional<TaskAssignment> existingTask = assignmentRepository
+                        .findByTaskIdAndTeamMemberId(savedTask.getId(), member.getId());
+
+                if (existingTask.isEmpty()) {
+                    assignmentRepository.save(assignment);
+                } else {
+                    System.out.println("⚠️ Assignment déjà existant pour ce membre dans cette tâche");
+                }
+
             }
         }
 
@@ -170,7 +178,15 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
             existing.addAll(personalHolidays);
             member.setHoliday(new ArrayList<>(existing));
 
-            assignmentRepository.save(assignment);
+            Optional<TaskAssignment> existingTask = assignmentRepository
+                    .findByTaskIdAndTeamMemberId(task.getId(), member.getId());
+
+            if (existingTask.isEmpty()) {
+                assignmentRepository.save(assignment);
+            } else {
+                System.out.println("⚠️ Assignment déjà existant pour ce membre dans cette tâche");
+            }
+
         }
 
         return getTacheById(id);

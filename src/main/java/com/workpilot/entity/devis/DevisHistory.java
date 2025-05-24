@@ -1,5 +1,6 @@
 package com.workpilot.entity.devis;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -24,6 +25,7 @@ public class DevisHistory {
     private String name;
 
     @ManyToOne
-    @JoinColumn(name = "devis_id")
+    @JsonBackReference
     private Devis devis;
+
 }

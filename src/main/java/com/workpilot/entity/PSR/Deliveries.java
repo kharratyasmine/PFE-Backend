@@ -27,7 +27,11 @@ public class Deliveries{
         private String status; // Delivered, Pending, Late
         private String deliverySupport ;
         private String customerFeedback;
+    @Column(name = "week")
+    private String week;
 
+    @Column(name = "report_year")
+    private Integer reportYear;
         @ManyToOne
         private Psr psr;
     }

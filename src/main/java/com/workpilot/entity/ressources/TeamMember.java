@@ -31,7 +31,10 @@ public class TeamMember {
 
     @Enumerated(EnumType.STRING)
     private Seniority role;
-    private Boolean fake = false;
+
+    @Column(nullable = false)
+    private boolean fake; // ou Boolean si tu veux autoriser null
+
     private Double cost;
     private String note;
     private LocalDate StartDate;

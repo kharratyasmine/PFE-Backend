@@ -6,7 +6,9 @@ import com.workpilot.dto.PsrDTO.RisksDTO;
 import com.workpilot.dto.PsrDTO.TeamOrganizationDTO;
 import com.workpilot.entity.PSR.Psr;
 
+import com.workpilot.entity.PSR.TaskTracker;
 import com.workpilot.entity.ressources.Project;
+import com.workpilot.repository.Psr.TaskTrackerRepository;
 import com.workpilot.repository.ressources.ProjectRepository;
 import com.workpilot.repository.Psr.PsrRepository;
 import com.workpilot.repository.ressources.UserRepository;
@@ -15,8 +17,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
+import java.time.temporal.WeekFields;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 @Service
 public class PsrServiceImpl implements PsrService {
@@ -30,55 +33,63 @@ public class PsrServiceImpl implements PsrService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private TaskTrackerRepository taskTrackerRepository;
     @Override
     public PsrDTO createPsr(PsrDTO psrDTO) {
         Psr psr = new Psr();
+// Validation de la date
+        validateReportDate(psrDTO.getReportDate(), psrDTO.getWeek());
+        // 🔹 Calcul automatique de la semaine et de l’année à partir de reportDate
+        LocalDate reportDate = psrDTO.getReportDate();
+        String week = getWeekFromDate(reportDate);
+        int reportYear = reportDate.getYear();
 
-        // Remplissage des informations de base du PSR depuis le DTO
+        // 🔒 Vérification unicité
+        if (psrRepository.existsByProjectIdAndWeekAndReportYear(psrDTO.getProjectId(), week, reportYear)) {
+            throw new IllegalStateException("Un PSR pour cette semaine existe déjà pour ce projet.");
+        }
+
+        // ✅ Remplissage des données
         psr.setReportTitle(psrDTO.getReportTitle());
-        psr.setReportDate(psrDTO.getReportDate());
+        psr.setReportDate(reportDate);
         psr.setComments(psrDTO.getComments());
         psr.setOverallStatus(psrDTO.getOverallStatus());
         psr.setAuthorName(psrDTO.getAuthorName());
 
         psr.setPreparedBy(psrDTO.getPreparedBy());
         psr.setValidatedBy(psrDTO.getValidatedBy());
-        psr.setApprovedBy(psr.getApprovedBy());
+        psr.setApprovedBy(psrDTO.getApprovedBy());
 
-        // Remplissage des informations supplémentaires
-        psr.setReference(psrDTO.getReference());  // Référence du PSR
-        psr.setEdition(psrDTO.getEdition());  // Edition du PSR
+        psr.setReference(psrDTO.getReference());
+        psr.setEdition(psrDTO.getEdition());
 
-        // Dates pour la préparation, l'approbation et la validation
         psr.setPreparedByDate(psrDTO.getPreparedByDate());
         psr.setApprovedByDate(psrDTO.getApprovedByDate());
         psr.setValidatedByDate(psrDTO.getValidatedByDate());
 
-        // Récupération du projet directement (sans lien avec Devis ou Demande)
+        // 🔗 Projet
         if (psrDTO.getProjectId() != null) {
             Project project = projectRepository.findById(psrDTO.getProjectId())
                     .orElseThrow(() -> new EntityNotFoundException("Project not found"));
             psr.setProject(project);
-
-            // Peupler les informations du projet dans le PSR (si nécessaire)
-            psr.setProjectName(project.getName());  // Nom du projet
+            psr.setProjectName(project.getName());
             if (project.getClient() != null) {
-                // Joindre tous les gestionnaires des ventes en une seule chaîne
-                psr.setClientName(String.join(", ", project.getClient().getSalesManagers()));
+                psr.setClientName(project.getClient().getSalesManagers() != null ?
+                        String.join(", ", project.getClient().getSalesManagers()) : "");
+
             }
-
         }
 
-        // Remplissage du champ "week" (si nécessaire)
-        if (psrDTO.getWeek() != null) {
-            psr.setWeek(psrDTO.getWeek());
-        }
+        // 🔄 Affectation automatique de la semaine et de l’année
+        psr.setWeek(week);
+        psr.setReportYear(reportYear);
 
-        // Sauvegarde du PSR
+        // ✅ Sauvegarde
         Psr saved = psrRepository.save(psr);
-
         return convertToDTO(saved);
     }
+
 
     @Override
     public List<PsrDTO> getAllPsrs() {
@@ -96,7 +107,15 @@ public class PsrServiceImpl implements PsrService {
 
     @Override
     public void deletePsr(Long id) {
-        psrRepository.deleteById(id);
+        Psr psr = psrRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("PSR non trouvé avec l'id : " + id));
+
+        // 🔁 Supprimer tous les TaskTrackers liés à ce PSR
+        List<TaskTracker> trackers = taskTrackerRepository.findByPsr(psr);
+        taskTrackerRepository.deleteAll(trackers);
+
+        // ❌ Ensuite supprimer le PSR
+        psrRepository.delete(psr);
     }
 
     private PsrDTO convertToDTO(Psr psr) {
@@ -118,6 +137,7 @@ public class PsrServiceImpl implements PsrService {
         dto.setClientName(psr.getClientName());
         dto.setWeek(psr.getWeek());
         dto.setAuthorName(psr.getAuthorName());
+        dto.setReportYear(psr.getReportYear());
 
         if (psr.getProject() != null) {
             dto.setProjectId(psr.getProject().getId());
@@ -175,6 +195,13 @@ public class PsrServiceImpl implements PsrService {
         return dto;
     }
 
+    private String getWeekFromDate(LocalDate date) {
+        WeekFields weekFields = WeekFields.of(Locale.getDefault());
+        int weekNumber = date.get(weekFields.weekOfWeekBasedYear());
+        int year = date.getYear();
+        return String.format("%d-W%02d", year, weekNumber); // Format: "2024-W01"
+    }
+
     @Override
     public List<PsrDTO> getPsrsByProject(Long projectId) {
         List<Psr> psrs = psrRepository.findByProjectId(projectId);
@@ -187,6 +214,10 @@ public class PsrServiceImpl implements PsrService {
         Psr psr = psrRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("PSR non trouvé avec l'id : " + id));
 
+        // Ne pas permettre la modification de la semaine
+        if (!psr.getWeek().equals(psrDTO.getWeek())) {
+            throw new IllegalStateException("La semaine ne peut pas être modifiée");
+        }
         // Mise à jour des champs principaux
         psr.setReportTitle(psrDTO.getReportTitle());
         psr.setReportDate(psrDTO.getReportDate());
@@ -229,5 +260,58 @@ public class PsrServiceImpl implements PsrService {
 
         // Retourner le DTO mis à jour
         return convertToDTO(updated);
+    }
+
+    @Override
+    public boolean existsPsrForCurrentWeek(Long projectId) {
+        LocalDate now = LocalDate.now();
+        String currentWeek = getWeekFromDate(now);
+        int currentYear = now.getYear();
+        return psrRepository.existsByProjectIdAndWeekAndReportYear(projectId, currentWeek, currentYear);
+    }
+
+    @Override
+    public PsrDTO createCurrentWeekPsr(Long projectId) {
+        LocalDate now = LocalDate.now();
+        String currentWeek = getWeekFromDate(now);
+
+        // Vérifier si un PSR existe déjà pour cette semaine
+        if (existsPsrForCurrentWeek(projectId)) {
+            throw new IllegalStateException("Un PSR existe déjà pour la semaine courante");
+        }
+
+        // Créer un nouveau PSR pour la semaine courante
+        PsrDTO newPsrDTO = new PsrDTO();
+        newPsrDTO.setProjectId(projectId);
+        newPsrDTO.setReportDate(now);
+        newPsrDTO.setReportTitle("PSR - Semaine " + currentWeek);
+        newPsrDTO.setOverallStatus("En cours");
+        newPsrDTO.setWeek(currentWeek);
+        newPsrDTO.setReportYear(now.getYear());
+
+        return createPsr(newPsrDTO);
+    }
+
+    @Override
+    public List<PsrDTO> getPsrsByWeekRange(Long projectId, String startWeek, String endWeek) {
+        return psrRepository.findByProjectIdAndWeekBetween(projectId, startWeek, endWeek)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<PsrDTO> getHistoricalPsrs(Long projectId, String week) {
+        return psrRepository.findByProjectIdAndWeekLessThanEqual(projectId, week)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    private void validateReportDate(LocalDate reportDate, String week) {
+        String calculatedWeek = getWeekFromDate(reportDate);
+        if (!calculatedWeek.equals(week)) {
+            throw new IllegalArgumentException("La date du rapport doit correspondre à la semaine spécifiée");
+        }
     }
 }

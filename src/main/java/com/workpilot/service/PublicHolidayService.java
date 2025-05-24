@@ -24,14 +24,25 @@ public class PublicHolidayService {
     private final Map<Integer, Set<LocalDate>> holidayCache = new HashMap<>();
 
     public List<CalendarificResponse.HolidayWrapper> getPublicHolidays(int year) {
-        String url = "https://calendarific.com/api/v2/holidays?api_key=" + apiKey +
-                "&country=TN&year=" + year;
+        try {
+            String url = "https://calendarific.com/api/v2/holidays?api_key=" + apiKey +
+                    "&country=TN&year=" + year;
 
-        ResponseEntity<CalendarificResponse> response =
-                restTemplate.getForEntity(url, CalendarificResponse.class);
+            ResponseEntity<CalendarificResponse> response =
+                    restTemplate.getForEntity(url, CalendarificResponse.class);
 
-        return response.getBody().getResponse().getHolidays();
+            if (response.getBody() != null && response.getBody().getResponse() != null) {
+                return response.getBody().getResponse().getHolidays();
+            } else {
+                System.err.println("⚠️ Réponse vide ou malformée de Calendarific pour l’année " + year);
+                return Collections.emptyList();
+            }
+        } catch (Exception e) {
+            System.err.println("❌ Erreur lors de l'appel à Calendarific : " + e.getMessage());
+            return Collections.emptyList();
+        }
     }
+
 
     public List<String> getAllOfficialHolidayIsoDates(int year) {
         return getPublicHolidays(year).stream()

@@ -1,5 +1,6 @@
 package com.workpilot.entity.devis;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -18,7 +19,10 @@ public class Distribution {
     private boolean partial;
     private boolean complete;
     private String type;
+
     @ManyToOne
     @JoinColumn(name = "devis_id")
+    @JsonBackReference
     private Devis devis;
+
 }

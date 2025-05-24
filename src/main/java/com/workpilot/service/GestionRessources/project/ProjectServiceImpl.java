@@ -1,9 +1,18 @@
 package com.workpilot.service.GestionRessources.project;
 
 import com.workpilot.dto.GestionRessources.*;
+import com.workpilot.entity.PSR.TeamOrganization;
+import com.workpilot.entity.devis.Devis;
 import com.workpilot.entity.ressources.*;
+import com.workpilot.repository.Psr.TeamOrganizationRepository;
+import com.workpilot.repository.devis.DevisRepository;
+import com.workpilot.repository.devis.FinancialDetailRepository;
+import com.workpilot.repository.devis.InvoicingDetailRepository;
+import com.workpilot.repository.devis.WorkloadDetailRepository;
 import com.workpilot.repository.ressources.*;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -17,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class ProjectServiceImpl implements ProjectService {
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Autowired
     private ProjectRepository projectRepository;
@@ -34,8 +45,30 @@ public class ProjectServiceImpl implements ProjectService {
     private ProjectTaskRepository projectTaskRepository;
 
     @Autowired
+    private TeamOrganizationRepository teamOrganizationRepository;
+
+    @Autowired
     private TeamMemberAllocationRepository teamMemberAllocationRepository;
 
+    @Autowired
+    private DemandeRepository demandeRepository;
+
+    @Autowired
+    private WorkloadDetailRepository workloadDetailRepository;
+
+    @Autowired
+    private WorkEntryRepository workEntryRepository;
+
+    @Autowired
+    private DevisRepository devisRepository;
+    @Autowired
+    private FinancialDetailRepository financialDetailRepository;
+
+    @Autowired
+    private InvoicingDetailRepository invoicingDetailRepository;
+
+    @Autowired
+    private PlannedWorkloadMemberRepository plannedWorkloadMemberRepository;
     @Override
     public Project createProject(ProjectDTO dto) {
         Project project = new Project();
@@ -60,7 +93,6 @@ public class ProjectServiceImpl implements ProjectService {
             }
             // Sinon, garder le statut existant
         }
-
         project.setActivity(dto.getActivity());
         project.setTechnologie(dto.getTechnologie());
 
@@ -77,16 +109,8 @@ public class ProjectServiceImpl implements ProjectService {
                             .orElseThrow(() -> new EntityNotFoundException("Utilisateur introuvable"))
             );
         }
+        project.setTeams(new HashSet<>()); // Lien automatique via Demande uniquement
 
-        if (dto.getTeamIds() != null && !dto.getTeamIds().isEmpty()) {
-            Set<Team> teams = dto.getTeamIds().stream()
-                    .map(id -> teamRepository.findById(id)
-                            .orElseThrow(() -> new EntityNotFoundException("Équipe introuvable avec l'ID : " + id)))
-                    .collect(Collectors.toSet());
-            project.setTeams(teams);
-        } else {
-            project.setTeams(new HashSet<>());
-        }
     }
 
     @Override
@@ -103,6 +127,15 @@ public class ProjectServiceImpl implements ProjectService {
 
         setProjectFields(project, dto);
         project = projectRepository.save(project);
+
+
+        // 🔄 Mettre à jour les PlannedStartDate et PlannedEndDate dans TeamOrganization
+        List<TeamOrganization> teamOrgs = teamOrganizationRepository.findByPsrProjectId(project.getId());
+        for (TeamOrganization org : teamOrgs) {
+            org.setPlannedStartDate(project.getStartDate());
+            org.setPlannedEndDate(project.getEndDate());
+        }
+        teamOrganizationRepository.saveAll(teamOrgs);
         return convertToDTO(project);
     }
 
@@ -112,13 +145,90 @@ public class ProjectServiceImpl implements ProjectService {
                 .orElseThrow(() -> new EntityNotFoundException("Projet introuvable : " + id));
     }
 
+
+
     @Transactional
     public void deleteProject(Long id) {
-        Project project = projectRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Projet non trouvé"));
+        /*try {
+            Project project = projectRepository.findById(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Projet non trouvé"));
 
-        projectTaskRepository.deleteByProjectId(id);
-        projectRepository.delete(project);
+            System.out.println("Début de la suppression du projet: " + id);
+
+            // 1. Désactiver temporairement les contraintes de clé étrangère
+            entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate();
+
+            // 2. Supprimer les entrées de travail
+            workEntryRepository.deleteByProjectId(id);
+            System.out.println("✅ Entrées de travail supprimées");
+
+            // 3. Supprimer les tâches
+            projectTaskRepository.deleteByProjectId(id);
+            System.out.println("✅ Tâches supprimées");
+
+            // 4. Supprimer les allocations
+            teamMemberAllocationRepository.deleteByProjectId(id);
+            System.out.println("✅ Allocations supprimées");
+
+            // 5. Supprimer les plannings
+            plannedWorkloadMemberRepository.deleteByProjectId(id);
+            System.out.println("✅ Plannings supprimés");
+
+            // 6. Supprimer les organisations d'équipe PSR
+            teamOrganizationRepository.deleteByPsrProjectId(id);
+            System.out.println("✅ Organisations d'équipe supprimées");
+
+            // 7. Gérer les devis et leurs détails (nouvelle approche)
+            deleteAllDevisForProject(id);
+
+            // 8. Supprimer les demandes
+            demandeRepository.deleteByProjectId(id);
+            System.out.println("✅ Demandes supprimées");
+
+            // 9. Gérer les relations avec les équipes
+            for (Team team : project.getTeams()) {
+                team.getProjects().remove(project);
+                teamRepository.save(team);
+            }
+            System.out.println("✅ Relations avec les équipes supprimées");
+
+            // 10. Réactiver les contraintes
+            entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate();
+
+            // 11. Supprimer le projet
+            projectRepository.delete(project);
+            System.out.println("✅ Projet supprimé avec succès");
+
+        } catch (Exception e) {
+            // Réactiver les contraintes en cas d'erreur
+            entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate();
+            System.err.println("❌ Erreur lors de la suppression du projet: " + e.getMessage());
+            e.printStackTrace();
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Erreur lors de la suppression du projet: " + e.getMessage());
+        }
+    }
+
+    private void deleteAllDevisForProject(Long projectId) {
+        List<Devis> devisList = devisRepository.findByProjectId(projectId); // sans fetch multiple
+
+        for (Devis devis : devisList) {
+            Long devisId = devis.getId();
+
+            entityManager.createNativeQuery("DELETE FROM workload_detail WHERE devis_id = ?")
+                    .setParameter(1, devisId).executeUpdate();
+
+            entityManager.createNativeQuery("DELETE FROM financial_detail WHERE devis_id = ?")
+                    .setParameter(1, devisId).executeUpdate();
+
+            entityManager.createNativeQuery("DELETE FROM invoicing_detail WHERE devis_id = ?")
+                    .setParameter(1, devisId).executeUpdate();
+
+            entityManager.createNativeQuery("DELETE FROM devis WHERE id = ?")
+                    .setParameter(1, devisId)
+                    .executeUpdate();
+
+        }*/
     }
 
     public ProjectDTO convertToDTO(Project project) {
@@ -132,17 +242,7 @@ public class ProjectServiceImpl implements ProjectService {
         dto.setStatus(project.getStatus());
         dto.setActivity(project.getActivity());
         dto.setTechnologie(project.getTechnologie());
-
-        if (project.getClient() != null) {
-            ClientDTO clientDTO = new ClientDTO();
-            clientDTO.setId(project.getClient().getId());
-            clientDTO.setCompany(project.getClient().getCompany());
-            clientDTO.setSalesManagers(project.getClient().getSalesManagers());
-            clientDTO.setContact(project.getClient().getContact());
-            clientDTO.setAddress(project.getClient().getAddress());
-            clientDTO.setEmail(project.getClient().getEmail());
-            dto.setClient(clientDTO);
-        }
+        dto.setClientId(project.getClient() != null ? project.getClient().getId() : null);
         dto.setUserId(project.getUser() != null ? project.getUser().getId() : null);
         dto.setUserName(project.getUser() != null ? project.getUser().getFirstname() : "Aucun utilisateur");
 
@@ -192,6 +292,17 @@ public class ProjectServiceImpl implements ProjectService {
             userDTO.setRole(project.getUser().getRole());
             dto.setUser(userDTO); // ✅ injection dans le ProjectDTO
         }
+        if (project.getClient() != null) {
+            ClientDTO clientDTO = new ClientDTO();
+            clientDTO.setId(project.getClient().getId());
+            clientDTO.setCompany(project.getClient().getCompany());
+            clientDTO.setSalesManagers(project.getClient().getSalesManagers());
+            clientDTO.setContact(project.getClient().getContact());
+            clientDTO.setAddress(project.getClient().getAddress());
+            clientDTO.setEmail(project.getClient().getEmail());
+            dto.setClient(clientDTO);
+        }
+
 
 
 

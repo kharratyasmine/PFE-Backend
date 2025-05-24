@@ -1,14 +1,20 @@
 package com.workpilot.controller.GestionRessources;
 
+import com.workpilot.dto.GestionRessources.ApprovalRequest;
 import com.workpilot.dto.GestionRessources.UserDTO;
 import com.workpilot.entity.auth.ChangePasswordRequest;
 import com.workpilot.entity.auth.User;
 
+import com.workpilot.entity.auth.token.ApprovalStatus;
+import com.workpilot.repository.ressources.UserRepository;
+import com.workpilot.service.EmailService;
 import com.workpilot.service.GestionRessources.user.UserService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +30,10 @@ public class UserController {
 
 
     private final UserService userService;
+@Autowired
+    private  UserRepository userRepository;
+@Autowired
+    private EmailService emailService;
 
     @Autowired
     public UserController(UserService userService) {
@@ -31,10 +41,16 @@ public class UserController {
     }
 
     @GetMapping
-    public ResponseEntity<List<UserDTO>> getAllUsers() {
-        List<UserDTO> users = userService.getAllUsers();
-        return ResponseEntity.ok(users);
+    public ResponseEntity<?> getAllUsers() {
+        try {
+            return ResponseEntity.ok(userService.getAllUsers());
+        } catch (Exception e) {
+            e.printStackTrace(); // très important pour voir l’erreur dans la console Spring
+            return ResponseEntity.status(500).body("Erreur interne : " + e.getMessage());
+        }
     }
+
+
     @GetMapping("/{id}")
     public ResponseEntity<User> getUserById(@PathVariable Long id) {
         return ResponseEntity.ok(userService.getUserById(id));
@@ -95,5 +111,75 @@ public class UserController {
         }
     }
 
+
+    @PatchMapping("/{id}/approval")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<?> approveUser(
+            @PathVariable Long id,
+            @RequestBody ApprovalRequest request) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+
+        if (request.isApproved()) {
+            user.setApprovalStatus(ApprovalStatus.APPROVED);
+            user.setRejectionReason(null);
+
+            // ✅ Mail avec lien vers le login Angular
+            String loginUrl = "http://localhost:4200/login";
+            String content = """
+    <div style='font-family:Arial, sans-serif;'>
+      <h2 style='color:#2ecc71;'>🎉 Votre compte a été validé</h2>
+      <p>Bonjour %s,</p>
+      <p>Votre inscription a été approuvée avec succès. Vous pouvez maintenant accéder à la plateforme :</p>
+      <p>
+        <a href="%s" style="
+          display:inline-block;
+          padding:10px 20px;
+          background-color:#3498db;
+          color:white;
+          text-decoration:none;
+          border-radius:5px;">
+          🔐 Se connecter
+        </a>
+      </p>
+      <br/>
+      <p style='color:#7f8c8d;'>Cordialement,<br/>L’équipe WorkLPilot</p>
+    </div>
+""".formatted(user.getFirstname(), loginUrl);
+
+            emailService.send(user.getEmail(), "✅ Votre compte est activé", content);
+
+
+        } else {
+            user.setApprovalStatus(ApprovalStatus.REJECTED);
+            user.setRejectionReason(request.getReason());
+
+            // ❌ Mail de refus sans lien
+            String content = """
+    <div style='font-family:Arial, sans-serif;'>
+      <h2 style='color:#e74c3c;'>❌ Demande refusée</h2>
+      <p>Bonjour %s,</p>
+      <p>Nous sommes désolés, votre demande d'inscription a été refusée.</p>
+      <p><strong>Raison :</strong> %s</p>
+      <p style='color:#7f8c8d;'>Cordialement,<br/>L’équipe WorkLPilot</p>
+    </div>
+""".formatted(user.getFirstname(), request.getReason());
+
+            emailService.send(user.getEmail(), "❌ Demande refusée", content);
+
+        }
+
+        userRepository.save(user);
+        return ResponseEntity.ok().build();
+    }
+
+
+
+
+    @GetMapping("/test")
+    public String test() {
+        return "✅ UserController fonctionne";
+    }
 
 }

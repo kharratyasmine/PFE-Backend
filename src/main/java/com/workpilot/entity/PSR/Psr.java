@@ -13,6 +13,9 @@ import java.util.List;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@Table(name = "psr", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"project_id", "week", "report_year"})
+})
 @Entity
 public class Psr {
 
@@ -36,6 +39,9 @@ public class Psr {
     private String week;
     private String clientName;
 
+    @Column(name = "report_year")
+    private Integer reportYear;
+
     // 🔹 Nom affiché textuellement
     private String authorName;
 
@@ -50,4 +56,8 @@ public class Psr {
 
     @OneToMany(mappedBy = "psr", cascade = CascadeType.ALL)
     private List<TeamOrganization> teamOrganizations;
+
+
+    @OneToMany(mappedBy = "psr", cascade = CascadeType.ALL)
+    private List<WeeklyReport> weeklyReports;
 }

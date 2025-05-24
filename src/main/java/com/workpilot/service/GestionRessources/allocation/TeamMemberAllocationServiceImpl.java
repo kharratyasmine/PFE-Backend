@@ -43,10 +43,12 @@ public class TeamMemberAllocationServiceImpl implements TeamMemberAllocationServ
         Project project = projectRepository.findById(allocationDTO.getProjectId())
                 .orElseThrow(() -> new RuntimeException("Projet non trouvé"));
 
-        Team team = project.getTeams().stream()
-                .filter(t -> t.getMembers().contains(member))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Aucune équipe trouvée pour ce membre dans ce projet"));
+        Team team = teamRepository.findById(allocationDTO.getTeamId())
+                .orElseThrow(() -> new RuntimeException("Équipe non trouvée"));
+
+        if (!team.getMembers().contains(member)) {
+            throw new RuntimeException("Le membre n'appartient pas à l'équipe spécifiée");
+        }
 
         Optional<TeamMemberAllocation> existingOpt =
                 teamMemberAllocationRepository.findAllByTeamMemberIdAndProjectIdAndTeamId(member.getId(), project.getId(), team.getId())
@@ -60,48 +62,62 @@ public class TeamMemberAllocationServiceImpl implements TeamMemberAllocationServ
 
         allocation = teamMemberAllocationRepository.save(allocation);
 
+        plannedWorkloadMemberService.deleteWorkloadsByProjectAndMember(project.getId(), member.getId());
+
         // ✨ 🔥 GÉNÉRER AUTOMATIQUEMENT LE PLANNING APRÈS ALLOCATION
-        plannedWorkloadMemberService.generateForMember(project.getId(), member.getId(), allocation.getAllocation());
+        double total = teamMemberAllocationRepository
+                .findAllByTeamMemberIdAndProjectId(member.getId(), project.getId())
+                .stream()
+                .mapToDouble(TeamMemberAllocation::getAllocation)
+                .sum();
+
+        plannedWorkloadMemberService.generateForMember(project.getId(), member.getId(), total);
+
 
         return convertToDTO(allocation);
     }
 
-
-
-
-
     @Override
     public TeamMemberAllocationDTO updateAllocation(Long id, TeamMemberAllocationDTO allocationDTO) {
-        // 🔍 Récupération de l'allocation existante
+        // 🔍 1. Récupération de l'allocation existante
         TeamMemberAllocation allocation = teamMemberAllocationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Allocation non trouvée"));
 
-        // 💾 Mise à jour de la valeur d'allocation
+        // 🔄 2. Met à jour la valeur d’allocation
         allocation.setAllocation(allocationDTO.getAllocation());
+
+        // 🔁 3. Vérifie si le teamId a changé et met à jour l'équipe si besoin
+        if (allocationDTO.getTeamId() != null &&
+                !allocation.getTeam().getId().equals(allocationDTO.getTeamId())) {
+            Team newTeam = teamRepository.findById(allocationDTO.getTeamId())
+                    .orElseThrow(() -> new RuntimeException("Nouvelle équipe non trouvée"));
+            allocation.setTeam(newTeam);
+        }
+
+        // 💾 4. Sauvegarde l’allocation mise à jour
         teamMemberAllocationRepository.save(allocation);
 
         Long projectId = allocation.getProject().getId();
         Long memberId = allocation.getTeamMember().getId();
 
-        // 🧹 Étape 1 : Supprimer les anciens workloads associés
+        // 🧹 5. Supprimer tous les workloads existants pour ce membre + projet
         plannedWorkloadMemberService.deleteWorkloadsByProjectAndMember(projectId, memberId);
 
-        // 🔄 Étape 2 : Régénérer les workloads avec la nouvelle allocation
-        plannedWorkloadMemberService.generateForMember(projectId, memberId, allocation.getAllocation());
+        // 📊 6. Recalculer la somme totale des allocations du membre dans ce projet
+        double totalAllocation = teamMemberAllocationRepository
+                .findAllByTeamMemberIdAndProjectId(memberId, projectId)
+                .stream()
+                .mapToDouble(TeamMemberAllocation::getAllocation)
+                .sum();
 
-        // 🔁 Recharge et retour
-        TeamMemberAllocation updated = teamMemberAllocationRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Erreur lors du rechargement de l'allocation"));
+        // 🔁 7. Régénérer les workloads à partir de l’allocation totale
+        plannedWorkloadMemberService.generateForMember(projectId, memberId, totalAllocation);
 
-        return convertToDTO(updated);
+        // 🔚 8. Retourner le DTO mis à jour
+        return convertToDTO(allocation);
     }
 
-
-
-
-
-
-    @Override
+        @Override
     public void deleteAllocation(Long id) {
         TeamMemberAllocation allocation = teamMemberAllocationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Allocation non trouvée"));
@@ -137,8 +153,6 @@ public class TeamMemberAllocationServiceImpl implements TeamMemberAllocationServ
         teamMemberAllocationRepository.deleteById(id);
     }
 
-
-
     @Override
     public TeamMemberAllocationDTO getAllocationByMemberAndProjectAndTeam(Long memberId, Long projectId,Long teamId) {
         List<TeamMemberAllocation> allocations = teamMemberAllocationRepository.findAllByTeamMemberIdAndProjectIdAndTeamId(memberId, projectId,teamId);
@@ -154,8 +168,6 @@ public class TeamMemberAllocationServiceImpl implements TeamMemberAllocationServ
 
         return new TeamMemberAllocationDTO(allocationId, memberId, projectId, totalAllocation);
     }
-
-
     @Override
     public List<TeamMemberAllocationDTO> getAllocationsByMember(Long memberId) {
         List<TeamMemberAllocation> allocations = teamMemberAllocationRepository.findByTeamMemberId(memberId);
@@ -163,8 +175,6 @@ public class TeamMemberAllocationServiceImpl implements TeamMemberAllocationServ
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
-
-
 
     private TeamMemberAllocationDTO convertToDTO(TeamMemberAllocation allocation) {
         TeamMemberAllocationDTO dto = new TeamMemberAllocationDTO();

@@ -18,6 +18,8 @@ import com.workpilot.repository.ressources.*;
 import com.workpilot.service.DevisServices.FinancialDetail.FinancialDetailService;
 import com.workpilot.service.DevisServices.InvoicingDetail.InvoicingDetailService;
 import com.workpilot.service.DevisServices.WorkloadDetail.WorkloadDetailService;
+import com.workpilot.service.GestionRessources.PlannedWorkloadMember.PlannedWorkloadMemberService;
+import com.workpilot.service.GestionRessources.PlannedWorkloadMember.PlannedWorkloadMemberServiceImpl;
 import com.workpilot.service.PSR.PSR.PsrService;
 import com.workpilot.service.PublicHolidayService;
 import jakarta.transaction.Transactional;
@@ -54,7 +56,7 @@ public class DemandeServiceImpl implements DemandeService {
     @Autowired private PublicHolidayService publicHolidayService;
     @Autowired private PsrService psrService;
     @Autowired private PsrRepository psrRepository;
-
+    @Autowired private PlannedWorkloadMemberService plannedWorkloadMemberService;
 
     @Override
     public List<DemandeDTO> getAlldemandes() {
@@ -354,6 +356,13 @@ public class DemandeServiceImpl implements DemandeService {
         Demande demande = demandeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Demande not found"));
 
+        // 1️⃣ Supprimer les planned workloads associés à la demande
+        for (TeamMember member : demande.getTeamMembers()) {
+            plannedWorkloadMemberService.deleteWorkloadsByProjectAndMember(
+                    demande.getProject().getId(),
+                    member.getId()
+            );
+        }
         // 1️⃣ Supprimer les détails du devis généré
         if (demande.getGeneratedDevis() != null) {
             Devis devis = demande.getGeneratedDevis();

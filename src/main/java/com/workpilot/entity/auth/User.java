@@ -2,6 +2,7 @@ package com.workpilot.entity.auth;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.workpilot.entity.auth.token.ApprovalStatus;
 import com.workpilot.entity.auth.token.Token;
 import com.workpilot.entity.ressources.Project;
 import jakarta.persistence.*;
@@ -46,11 +47,17 @@ public class User implements UserDetails {
     private String photoUrl;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Role role;
+
 
     @OneToMany(mappedBy = "user")
     @JsonIgnore
     private List<Token> tokens;
+    @Enumerated(EnumType.STRING)
+    private ApprovalStatus approvalStatus; // PENDING, APPROVED, REJECTED
+
+    private String rejectionReason;
 
     @Override
     @JsonIgnore

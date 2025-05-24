@@ -12,9 +12,9 @@ import java.time.LocalDate;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonIdentityInfo(
-        generator = ObjectIdGenerators.PropertyGenerator.class,
-        property = "id"
+@Table(
+        name = "task_assignment",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"task_id", "team_member_id"})
 )
 public class TaskAssignment {
     @Id

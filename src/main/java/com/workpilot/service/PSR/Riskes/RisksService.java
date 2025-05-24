@@ -11,4 +11,6 @@ public interface RisksService {
     List<RisksDTO> getRisksByPsr(Long psrId);
 
     void deleteRisk(Long id);
+
+    RisksDTO updateRisk(Long psrId, RisksDTO riskDTO);
 }

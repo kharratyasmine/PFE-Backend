@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
@@ -16,11 +17,18 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
 
     List<WorkEntry> findByMemberIdAndTaskId(Long memberId, Long taskId);
 
-    @Modifying
+    void deleteByTaskId(Long id);
+
+    List<WorkEntry> findByMemberIdAndTaskIdAndDate(Long memberId, Long taskId, LocalDate date);
+
+   /* @Modifying
     @Transactional
     @Query("DELETE FROM TaskAssignment a WHERE a.task.id = :taskId")
-    void deleteByTaskId(@Param("taskId") Long taskId);
+    void deleteByTaskId(@Param("taskId") Long taskId);*/
 
-
+    /*@Modifying
+    @Transactional
+    @Query("DELETE FROM WorkEntry w WHERE w.task.project.id = :projectId")
+    void deleteByProjectId(@Param("projectId") Long projectId);*/
 
 }

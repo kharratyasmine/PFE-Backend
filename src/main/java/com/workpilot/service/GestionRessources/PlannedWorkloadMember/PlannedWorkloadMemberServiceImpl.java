@@ -146,21 +146,35 @@ public class PlannedWorkloadMemberServiceImpl implements PlannedWorkloadMemberSe
         List<TeamMemberAllocation> allocations = teamMemberAllocationRepository.findAllByProjectId(projectId);
         List<PlannedWorkloadMemberDTO> generated = new ArrayList<>();
 
+        // 🔁 Map globale par membre pour suivre le travail déjà prévu jour par jour
+        Map<Long, Map<LocalDate, Double>> globalMemberWorkload = new HashMap<>();
+
         for (Demande demande : project.getDemandes()) {
             LocalDate startDate = demande.getDateDebut();
             LocalDate endDate = demande.getDateFin();
 
             for (TeamMemberAllocation allocationEntity : allocations) {
                 TeamMember member = allocationEntity.getTeamMember();
-                double allocation = allocationEntity.getAllocation();
 
-                generateWorkloads(generated, project, demande, member, allocation, allocationEntity.getTeam().getName());
+                if (demande.getTeamMembers() == null ||
+                        demande.getTeamMembers().stream().noneMatch(m -> m.getId().equals(member.getId()))) {
+                    continue;
+                }
+
+                double allocation = allocationEntity.getAllocation();
+                Team team = allocationEntity.getTeam();
+
+                // Map des jours déjà utilisés pour ce membre
+                Map<LocalDate, Double> memberLoad = globalMemberWorkload.computeIfAbsent(member.getId(), k -> new HashMap<>());
+
+                generateWorkloads(generated, project, demande, member, allocation, team, memberLoad);
             }
 
             if (demande.getFakeMembers() != null) {
                 for (FakeMember fake : demande.getFakeMembers()) {
                     TeamMember temp = createTemporaryMemberFromFake(fake);
-                    generateWorkloads(generated, project, demande, temp, 1.0, "FakeTeam");
+                    Map<LocalDate, Double> memberLoad = globalMemberWorkload.computeIfAbsent(temp.getId(), k -> new HashMap<>());
+                    generateWorkloads(generated, project, demande, temp, 1.0, null, memberLoad);
                 }
             }
         }
@@ -168,28 +182,64 @@ public class PlannedWorkloadMemberServiceImpl implements PlannedWorkloadMemberSe
         return generated;
     }
 
-    private void generateWorkloads(List<PlannedWorkloadMemberDTO> result, Project project, Demande demande,
-                                   TeamMember member, double allocation, String teamName) {
-        LocalDate current = demande.getDateDebut().withDayOfMonth(1);
-        LocalDate end = demande.getDateFin().withDayOfMonth(1);
 
-        while (!current.isAfter(end)) {
+
+    private void generateWorkloads(List<PlannedWorkloadMemberDTO> result, Project project, Demande demande,
+                                   TeamMember member, double allocation, Team team,
+                                   Map<LocalDate, Double> dailyLoad) {
+        LocalDate current = demande.getDateDebut().withDayOfMonth(1);
+        LocalDate loopEnd = demande.getDateFin().withDayOfMonth(1);
+
+        while (!current.isAfter(loopEnd)) {
             int year = current.getYear();
             int month = current.getMonthValue();
 
-            int workdays = calculateWorkdays(year, month);
-            int workload = (int) (workdays * allocation);
+            LocalDate monthStart = LocalDate.of(year, month, 1);
+            LocalDate monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth());
 
-            PlannedWorkloadMember entity = new PlannedWorkloadMember();
-            entity.setProject(project);
-            entity.setTeamMember(member);
-            entity.setYear(year);
-            entity.setMonth(String.valueOf(month));
-            entity.setWorkload(workload);
-            entity.setNote("Auto-generated for demande [" + demande.getName() + "] - Team: " + teamName);
+            LocalDate effectiveStart = current.isBefore(demande.getDateDebut()) ? demande.getDateDebut() : current;
+            LocalDate effectiveEnd = monthEnd.isAfter(demande.getDateFin()) ? demande.getDateFin() : monthEnd;
 
-            repository.save(entity);
-            result.add(toDTO(entity));
+            Set<LocalDate> publicHolidays = publicHolidayService.getAllCombinedHolidays(year);
+
+            double monthlyWorkload = 0.0;
+
+            for (LocalDate date = effectiveStart; !date.isAfter(effectiveEnd); date = date.plusDays(1)) {
+                if (date.getDayOfWeek().getValue() > 5 || publicHolidays.contains(date)) continue;
+
+                double currentLoad = dailyLoad.getOrDefault(date, 0.0);
+                double available = Math.max(0, 1.0 - currentLoad);
+                double toAdd = Math.min(available, allocation);
+
+                if (toAdd > 0) {
+                    dailyLoad.put(date, currentLoad + toAdd);
+                    monthlyWorkload += toAdd;
+                }
+            }
+
+            if (monthlyWorkload > 0) {
+                Optional<PlannedWorkloadMember> existingOpt = repository
+                        .findByProjectIdAndTeamMemberIdAndYearAndMonth(project.getId(), member.getId(), year, String.valueOf(month));
+
+                PlannedWorkloadMember entity;
+                if (existingOpt.isPresent()) {
+                    entity = existingOpt.get();
+                    entity.setWorkload(entity.getWorkload() + (int) monthlyWorkload); // arrondi si nécessaire
+                } else {
+                    entity = new PlannedWorkloadMember();
+                    entity.setProject(project);
+                    entity.setTeamMember(member);
+                    entity.setYear(year);
+                    entity.setMonth(String.valueOf(month));
+                    entity.setWorkload((int) monthlyWorkload);
+                    entity.setNote("Auto-generated for demande [" + demande.getName() + "]" +
+                            (team != null ? " - Team: " + team.getName() : ""));
+                }
+
+                repository.save(entity);
+                result.add(toDTO(entity));
+            }
+
             current = current.plusMonths(1);
         }
     }
@@ -226,7 +276,16 @@ public class PlannedWorkloadMemberServiceImpl implements PlannedWorkloadMemberSe
         }
         return workdays;
     }
-
+    private int calculateWorkdaysBetween(LocalDate start, LocalDate end) {
+        Set<LocalDate> publicHolidays = publicHolidayService.getAllCombinedHolidays(start.getYear());
+        int workdays = 0;
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            if (date.getDayOfWeek().getValue() <= 5 && !publicHolidays.contains(date)) {
+                workdays++;
+            }
+        }
+        return workdays;
+    }
 
     private Set<LocalDate> getMemberHolidays(TeamMember member) {
         Set<LocalDate> holidays = new HashSet<>();
@@ -250,51 +309,22 @@ public class PlannedWorkloadMemberServiceImpl implements PlannedWorkloadMemberSe
         TeamMember member = teamMemberRepository.findById(memberId)
                 .orElseThrow(() -> new RuntimeException("Membre introuvable"));
 
-        // 🔍 Récupère toutes les allocations de ce membre sur ce projet
         List<TeamMemberAllocation> allocations = teamMemberAllocationRepository
                 .findAllByProjectIdAndTeamMemberId(projectId, memberId);
 
-        // 🔄 BOUCLE SUR TOUTES LES DEMANDES
-        for (Demande demande : project.getDemandes()) {
+        Map<LocalDate, Double> memberLoad = new HashMap<>(); // 🧠 map par jour du membre (comme dans globale)
 
-            LocalDate startDate = demande.getDateDebut();
-            LocalDate endDate = demande.getDateFin();
+        for (Demande demande : project.getDemandes()) {
+            if (demande.getTeamMembers() == null ||
+                    demande.getTeamMembers().stream().noneMatch(m -> m.getId().equals(memberId))) {
+                continue;
+            }
 
             for (TeamMemberAllocation allocationEntity : allocations) {
                 double allocation = allocationEntity.getAllocation();
+                Team team = allocationEntity.getTeam();
 
-                LocalDate current = startDate.withDayOfMonth(1);
-                LocalDate end = endDate.withDayOfMonth(1);
-
-                while (!current.isAfter(end)) {
-                    int year = current.getYear();
-                    int month = current.getMonthValue();
-
-                    int workdays = calculateWorkdays(year, month);
-                    int workload = (int) (workdays * allocation);
-
-                    // 🔍 Check si existe déjà
-                    Optional<PlannedWorkloadMember> existingOpt = repository
-                            .findByProjectIdAndTeamMemberIdAndYearAndMonth(projectId, memberId, year, String.valueOf(month));
-
-                    PlannedWorkloadMember entity;
-                    if (existingOpt.isPresent()) {
-                        entity = existingOpt.get();
-                        entity.setWorkload(workload);
-                    } else {
-                        entity = new PlannedWorkloadMember();
-                        entity.setProject(project);
-                        entity.setTeamMember(member);
-                        entity.setYear(year);
-                        entity.setMonth(String.valueOf(month));
-                        entity.setWorkload(workload);
-                        entity.setNote("Auto-generated for demande [" + demande.getName() + "] - Team: " + allocationEntity.getTeam().getName());
-                        // 👉 Optionnel : entity.setTeam(allocationEntity.getTeam());
-                    }
-
-                    repository.save(entity);
-                    current = current.plusMonths(1);
-                }
+                generateWorkloads(new ArrayList<>(), project, demande, member, allocation, team, memberLoad);
             }
         }
     }

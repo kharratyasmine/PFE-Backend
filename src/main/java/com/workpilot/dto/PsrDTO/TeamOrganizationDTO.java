@@ -15,12 +15,15 @@ public class TeamOrganizationDTO {
     private String initial;
     private String role;
     private String project;
-    private LocalDate PlannedStartDate;
-    private LocalDate PlannedEndDate;
+    private LocalDate plannedStartDate;
+    private LocalDate plannedEndDate;
     private String Allocation;
     private String ComingFromTeam;
     private String GoingToTeam;
     private String Holiday ;
     private String teamName; // facultatif
     private Long PsrId;
+
+    private String week;
+    private Integer reportYear;
 }

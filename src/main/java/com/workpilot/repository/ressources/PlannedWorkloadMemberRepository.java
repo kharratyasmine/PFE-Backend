@@ -14,5 +14,6 @@ public interface PlannedWorkloadMemberRepository extends JpaRepository<PlannedWo
     List<PlannedWorkloadMember> findByProjectIdAndTeamMemberId(Long projectId, Long teamMemberId);
     List<PlannedWorkloadMember> findByProjectIdAndYear(Long projectId, int year);
     Optional<PlannedWorkloadMember> findByProjectIdAndTeamMemberIdAndYearAndMonth(Long projectId, Long teamMemberId, int year, String month);
+    void deleteByProjectIdAndTeamMemberId(Long projectId, Long teamMemberId);
 
 }

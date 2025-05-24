@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TeamMemberAllocationRepository extends JpaRepository<TeamMemberAllocation, Long> {
@@ -19,5 +20,8 @@ public interface TeamMemberAllocationRepository extends JpaRepository<TeamMember
     List<TeamMemberAllocation> findAllByTeamId(Long teamId);
     List<TeamMemberAllocation> findAllByProjectId(Long projectId);
     List<TeamMemberAllocation> findAllByProjectIdAndTeamMemberId(Long projectId, Long teamMemberId);
+    void deleteByProjectId(Long projectId);
+    Optional<TeamMemberAllocation> findByProjectIdAndTeamMemberIdAndTeamId(Long projectId, Long teamMemberId, Long teamId);
+
 
 }

@@ -30,6 +30,11 @@ public class TeamOrganization {
     private String Holiday ;
     private String teamName;
 
+    @Column(name = "week")
+    private String week;
+
+    @Column(name = "report_year")
+    private Integer reportYear;
 
     @ManyToOne
     private Psr psr;

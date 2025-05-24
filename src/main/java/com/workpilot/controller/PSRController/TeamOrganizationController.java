@@ -1,8 +1,6 @@
 package com.workpilot.controller.PSRController;
 
-import com.workpilot.dto.DevisDTO.DevisHistoryDTO;
 import com.workpilot.dto.PsrDTO.TeamOrganizationDTO;
-
 import com.workpilot.service.PSR.TeamOrganization.TeamOrganizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +18,14 @@ public class TeamOrganizationController {
     @GetMapping("/psr/{psrId}/team-Organization")
     public ResponseEntity<List<TeamOrganizationDTO>> getTeamOrganizationByPsr(@PathVariable Long psrId) {
         List<TeamOrganizationDTO> teamList = teamOrganizationService.getTeamByPsrId(psrId);
+        return ResponseEntity.ok(teamList);
+    }
+
+    @GetMapping("/teamOrganization/psr/{psrId}/week/{week}")
+    public ResponseEntity<List<TeamOrganizationDTO>> getTeamOrganizationByWeek(
+            @PathVariable Long psrId,
+            @PathVariable String week) {
+        List<TeamOrganizationDTO> teamList = teamOrganizationService.getTeamByPsrIdAndWeek(psrId, week);
         return ResponseEntity.ok(teamList);
     }
 
@@ -43,5 +49,6 @@ public class TeamOrganizationController {
     public ResponseEntity<List<TeamOrganizationDTO>> getAllProjectMembers(@PathVariable Long psrId) {
         return ResponseEntity.ok(teamOrganizationService.getAllProjectMembersForPsr(psrId));
     }
+
 
 }

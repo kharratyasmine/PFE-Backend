@@ -29,6 +29,21 @@ public class WorkEntryServiceImpl implements WorkEntryService {
 
     @Override
     public WorkEntry createWorkEntry(WorkEntry workEntry) {
+        // Vérifier l'existence d'une entrée similaire
+        List<WorkEntry> existingEntries = workEntryRepository.findByMemberIdAndTaskIdAndDate(
+                workEntry.getMemberId(),
+                workEntry.getTaskId(),
+                workEntry.getDate()
+        );
+
+        if (!existingEntries.isEmpty()) {
+            // Mettre à jour l'entrée existante au lieu d'en créer une nouvelle
+            WorkEntry existingEntry = existingEntries.get(0);
+            existingEntry.setStatus(workEntry.getStatus());
+            existingEntry.setComment(workEntry.getComment());
+            return workEntryRepository.save(existingEntry);
+        }
+
         return workEntryRepository.save(workEntry);
     }
 
@@ -48,4 +63,5 @@ public class WorkEntryServiceImpl implements WorkEntryService {
         return workEntryRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("WorkEntry not found with id: " + id));
     }
+
 }

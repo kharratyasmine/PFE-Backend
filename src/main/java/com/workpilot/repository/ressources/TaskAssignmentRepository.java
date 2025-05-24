@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
+
 @Repository
 public interface TaskAssignmentRepository extends JpaRepository<TaskAssignment, Long> {
     List<TaskAssignment> findByTaskId(Long taskId);
@@ -17,6 +19,7 @@ public interface TaskAssignmentRepository extends JpaRepository<TaskAssignment, 
     @Transactional
     @Query("DELETE FROM TaskAssignment ta WHERE ta.task.id = :taskId")
     void deleteByTaskId(Long taskId);
+    Optional<TaskAssignment> findByTaskIdAndTeamMemberId(Long taskId, Long memberId);
 
 
 }

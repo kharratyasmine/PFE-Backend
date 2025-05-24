@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,12 +40,18 @@ public class ClientController {
         return clientRepository.findAll().stream()
                 .map(client -> {
                     ClientDTO dto = new ClientDTO();
+
+                    // ✅ Ajout de l'ID manquant
+                    dto.setId(client.getId());
                     dto.setCompany(client.getCompany());
                     dto.setSalesManagers(client.getSalesManagers());
 
-                    if (role == Role.ADMIN || role == Role.QUALITE) {
+                    // Champs visibles uniquement pour QUALITE et ADMIN
+                    if (role == Role.ADMIN || role == Role.COORDINATEUR_QUALITE || role == Role.RESPONSABLE_QUALITE || role == Role.RESPONSABLE_PROJET) {
                         dto.setEmail(client.getEmail());
                     }
+
+                    // Champs visibles uniquement pour ADMIN
                     if (role == Role.ADMIN) {
                         dto.setContact(client.getContact());
                         dto.setAddress(client.getAddress());
@@ -52,6 +59,7 @@ public class ClientController {
 
                     return dto;
                 })
+                .sorted(Comparator.comparing(ClientDTO::getId)) // ✅ Tri par ID croissant
                 .collect(Collectors.toList());
     }
 

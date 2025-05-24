@@ -1,5 +1,6 @@
 package com.workpilot.entity.devis;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.workpilot.entity.ressources.Demande;
 import jakarta.persistence.*;
@@ -23,9 +24,11 @@ public class InvoicingDetail {
     private LocalDate invoicingDate;
     private BigDecimal amount;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "devis_id", nullable = false)
     @JsonIgnore
     private Devis devis;
+
 
     @ManyToOne
     @JoinColumn(name = "demande_id", nullable = false)

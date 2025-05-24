@@ -40,7 +40,6 @@ public class ProjectDTO {
 
 
     private List<TeamDTO> teams;     // Pour l'affichage
-    private List<Long> teamIds;      // Pour l'enregistrement
     private List<DemandeDTO> demandes;
     private List<DevisDTO> devisList;
 
@@ -62,25 +61,20 @@ public class ProjectDTO {
         this.technologie = technologie;
         this.status = status;
         this.client = client;
+        this.clientId = client != null ? client.getId() : null;
         this.userId = userId;
         this.userName = userName;
         this.teams = teams;
         this.demandes = demandes;
         this.devisList = devisList;
 
-        // Auto-remplir les teamIds
-        if (teams != null) {
-            this.teamIds = teams.stream()
-                    .map(TeamDTO::getId)
-                    .toList();
-        }
     }
 
     // ✅ Autre constructeur simple si tu ne veux pas toute la structure
     public ProjectDTO(Long id, String name, String projectType, String description,
                       LocalDate startDate, LocalDate endDate,
                       String activity, String technologie,
-                      Status status, Long userId, List<Long> teamIds) {
+                      Status status, Long userId, Long clientId) {
 
         this.id = id;
         this.name = name;
@@ -92,6 +86,6 @@ public class ProjectDTO {
         this.technologie = technologie;
         this.status = status;
         this.userId = userId;
-        this.teamIds = teamIds;
+        this.clientId = clientId;
     }
 }
