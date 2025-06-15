@@ -49,6 +49,8 @@ public class Risks {
 
     @Column(name = "report_year")
     private Integer reportYear;
+
     @ManyToOne
     private Psr psr;
+
 }

@@ -6,11 +6,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Arrays;
 
 @SpringBootApplication
+@EnableScheduling
 @EntityScan(basePackages = "com.workpilot")
 public class WorkpilotApplication {
 	public static void main(String[] args) {

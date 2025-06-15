@@ -45,7 +45,11 @@ public class SecurityConfiguration {
             "/swagger-ui.html",
             "/auth/refresh-token",
             "/auth/register",
-            "/auth/authenticate"
+            "/auth/authenticate",
+            "/ws/**",
+            "/topic/**",
+            "/app/**",
+            "/api/notifications/**"
     };
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final AuthenticationProvider authenticationProvider;
@@ -62,9 +66,10 @@ public class SecurityConfiguration {
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/scrape", "/fetch-data").permitAll()
                         .requestMatchers("/auth/refresh-token").permitAll()
-                        .requestMatchers(String.valueOf(HttpMethod.PATCH), "/users/*/approval").permitAll()
+                        .requestMatchers(String.valueOf(HttpMethod.PATCH), "/users/*/approval").hasRole("ADMIN")
                         .requestMatchers("/uploads/**").permitAll()
-                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/ws/**", "/topic/**", "/app/**","/ws").permitAll()
+                        .requestMatchers("/api/notifications/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // ✅ API REST sans session
@@ -80,9 +85,10 @@ public class SecurityConfiguration {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of("http://localhost:4200"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With"));
         configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

@@ -46,7 +46,7 @@ public class DistributionServiceImpl implements DistributionService {
                         .partial(false)
                         .complete(false)
                         .function("")
-                        .type("customer") // ✅ Important
+                        .type("Customer") // ✅ Important
                         .build());
             }
         }
@@ -60,7 +60,7 @@ public class DistributionServiceImpl implements DistributionService {
                     .partial(false)
                     .complete(false)
                     .function("")
-                    .type("telnet") // ✅ Important
+                    .type("Telnet") // ✅ Important
                     .build());
         }
 
@@ -125,8 +125,8 @@ public class DistributionServiceImpl implements DistributionService {
         List<String> clientNames = devis.getProject().getClient().getSalesManagers();
         String userFullName = devis.getProject().getUser().getFirstname() + " " + devis.getProject().getUser().getLastname();
 
-        if (clientNames.contains(name)) return "customer";
-        if (userFullName.equals(name)) return "telnet";
+        if (clientNames.contains(name)) return "Customer";
+        if (userFullName.equals(name)) return "Telnet";
         return "unknown";
     }
 

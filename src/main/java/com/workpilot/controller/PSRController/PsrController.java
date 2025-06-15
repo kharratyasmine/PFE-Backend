@@ -2,8 +2,7 @@ package com.workpilot.controller.PSRController;
 
 import com.workpilot.dto.PsrDTO.PsrDTO;
 import com.workpilot.service.PSR.PSR.PsrService;
-import com.workpilot.service.PSR.PsrExportService;
-import jakarta.persistence.EntityNotFoundException;
+import com.workpilot.Export.PsrExportService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -118,17 +117,17 @@ public class PsrController {
             return ResponseEntity.ok(psrService.getHistoricalPsrs(projectId, week));
         }
 
-        // Endpoint pour obtenir le PSR de la semaine courante
-        @GetMapping("/project/{projectId}/current")
-        public ResponseEntity<PsrDTO> getCurrentWeekPsr(@PathVariable Long projectId) {
-            if (psrService.existsPsrForCurrentWeek(projectId)) {
-                return ResponseEntity.ok(psrService.getPsrsByProject(projectId)
-                        .stream()
-                        .filter(psr -> psr.getWeek().equals(getCurrentWeek()))
-                        .findFirst()
-                        .orElseThrow(() -> new EntityNotFoundException("PSR non trouvé")));
-            }
-            return ResponseEntity.notFound().build();
-        }
+    @GetMapping("/current-week/{projectId}")
+    public ResponseEntity<List<PsrDTO>> getCurrentWeekPsr(@PathVariable Long projectId) {
+        return ResponseEntity.ok(psrService.getCurrentWeekPsrs(projectId));
     }
+
+    @PostMapping("/auto-create-all")
+    public ResponseEntity<String> createPsrsForAllProjects() {
+        psrService.autoGenerateWeeklyPsrsForAllProjects();
+        return ResponseEntity.ok("PSRs créés pour la semaine courante.");
+    }
+
+
+}
 

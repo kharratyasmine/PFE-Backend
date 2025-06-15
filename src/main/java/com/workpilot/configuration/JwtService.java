@@ -1,8 +1,10 @@
 package com.workpilot.configuration;
 
 import com.workpilot.entity.auth.User;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Service;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -19,6 +21,8 @@ import java.util.function.Function;
 
 @Service
 public class JwtService {
+    @Autowired
+    private UserDetailsService userDetailsService;
 
     @Value("${application.security.jwt.secret-key}")
     private String secretKey;
@@ -104,4 +108,26 @@ public class JwtService {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
     }
+
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parserBuilder()
+                    .setSigningKey(getSignInKey())
+                    .build()
+                    .parseClaimsJws(token);
+            return true; // Si pas d'exception → valide
+        } catch (Exception e) {
+            return false; // Si exception → invalide
+        }
+    }
+
+    public org.springframework.security.core.Authentication getAuthentication(String token) {
+        String username = extractUsername(token);
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        return new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                userDetails,
+                null,
+                userDetails.getAuthorities()
+        );
+}
 }

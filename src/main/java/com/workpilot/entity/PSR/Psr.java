@@ -57,7 +57,11 @@ public class Psr {
     @OneToMany(mappedBy = "psr", cascade = CascadeType.ALL)
     private List<TeamOrganization> teamOrganizations;
 
+    @OneToMany(mappedBy = "psr", cascade = CascadeType.ALL)
+    private List<TaskTracker> taskTrackers;
 
     @OneToMany(mappedBy = "psr", cascade = CascadeType.ALL)
     private List<WeeklyReport> weeklyReports;
+
+
 }

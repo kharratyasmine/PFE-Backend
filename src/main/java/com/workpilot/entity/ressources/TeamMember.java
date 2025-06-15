@@ -43,10 +43,11 @@ public class TeamMember {
 
 
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "team_member_holidays", joinColumns = @JoinColumn(name = "team_member_id"))
     @Column(name = "holiday")
     private List<String> holiday = new ArrayList<>();
+
 
     @ManyToMany(mappedBy = "members", fetch = FetchType.LAZY)
     @JsonIgnore

@@ -1,5 +1,6 @@
 package com.workpilot.entity.ressources;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.workpilot.entity.ressources.TeamMember;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -18,6 +19,7 @@ public class TeamMemberHistory {
 
     @ManyToOne
     @JoinColumn(name = "team_member_id", nullable = false)
+    @JsonIgnore
     private TeamMember teamMember;
 
     @Column(nullable = false)

@@ -38,8 +38,6 @@ public class AuthenticationService {
     private final Map<String, Long> lockTime = new ConcurrentHashMap<>();
     private static final int MAX_ATTEMPTS = 5;
     private static final long LOCK_DURATION = 5 * 60 * 1000; // 5 minutes
-    private final NotificationService notificationService;
-
     public AuthenticationResponse register(RegisterRequest request) {
         var user = User.builder()
                 .firstname(request.getFirstname())
@@ -95,8 +93,6 @@ public class AuthenticationService {
                     "🔐 Validation d’un nouveau compte",
                     emailContent
             );
-// 🔔 Notification WebSocket
-            notificationService.sendNotification("👤 Nouvelle demande d’inscription : " + user.getEmail());
             return AuthenticationResponse.builder()
                     .message("Votre inscription est en attente de validation par un administrateur.")
                     .build();

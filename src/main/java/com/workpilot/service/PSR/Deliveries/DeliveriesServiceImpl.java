@@ -39,7 +39,7 @@ public class DeliveriesServiceImpl implements DeliveriesService {
         delivery.setDeliverySupport(deliveryDTO.getDeliverySupport());
         delivery.setCustomerFeedback(deliveryDTO.getCustomerFeedback());
         delivery.setPsr(psr);
-
+        delivery.setWeek(psr.getWeek());
         Deliveries saved = deliveryRepository.save(delivery);
 
         System.out.println("✅ Delivery enregistré avec id : " + saved.getId());

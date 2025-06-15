@@ -5,6 +5,7 @@ import com.workpilot.entity.auth.ChangePasswordRequest;
 import com.workpilot.entity.auth.Role;
 import com.workpilot.entity.auth.User;
 
+import com.workpilot.entity.auth.token.ApprovalStatus;
 import com.workpilot.repository.ressources.UserRepository;
 import com.workpilot.service.GestionRessources.user.UserService;
 import jakarta.persistence.EntityNotFoundException;
@@ -62,14 +63,14 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserDTO> getAllUsers() {
-        return userRepository.findAll().stream()
+        return userRepository.findByApprovalStatus(ApprovalStatus.APPROVED)
+                .stream()
                 .map(user -> {
                     UserDTO dto = new UserDTO();
                     dto.setId(user.getId());
                     dto.setFirstname(user.getFirstname());
                     dto.setLastname(user.getLastname());
                     dto.setEmail(user.getEmail());
-
                     return dto;
                 })
                 .collect(Collectors.toList());

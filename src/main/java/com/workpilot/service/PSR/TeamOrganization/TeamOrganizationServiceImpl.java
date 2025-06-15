@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -76,6 +77,7 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
         dto.setGoingToTeam(entity.getGoingToTeam());
         dto.setHoliday(entity.getHoliday());
         dto.setTeamName(entity.getTeamName());
+        dto.setWeek(entity.getWeek());
         return dto;
     }
 
@@ -96,6 +98,7 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
         entity.setGoingToTeam(dto.getGoingToTeam());
         entity.setHoliday(dto.getHoliday());
         entity.setTeamName(dto.getTeamName());
+        entity.setWeek(dto.getWeek());
     }
     @Override
     public List<TeamOrganizationDTO> getAllProjectMembersForPsr(Long psrId) {
@@ -141,6 +144,7 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
                 // ✅ convert DTO to entity and link PSR
                 TeamOrganization entity = convertToEntity(dto);
                 entity.setPsr(psr);
+                entity.setWeek(psr.getWeek());
 
                 // ✅ vérifier doublon : on évite de créer si déjà enregistré
                 boolean alreadyExists = teamOrganizationRepository.existsByPsrIdAndInitialAndFullName(psrId, dto.getInitial(), dto.getFullName());
@@ -174,45 +178,19 @@ public class TeamOrganizationServiceImpl implements TeamOrganizationService {
 
         return "0%";
     }
+    @Override
+    public List<TeamOrganizationDTO> getTeamByPsrIdAndWeek(Long psrId, String week) {
+        // 1. Vérifier si le PSR existe (c'est une bonne pratique)
+        Psr psr = psrRepository.findById(psrId)
+                .orElseThrow(() -> new EntityNotFoundException("PSR not found with ID: " + psrId));
 
-        @Override
-        public List<TeamOrganizationDTO> getTeamByPsrIdAndWeek(Long psrId, String week) {
-            // 1. Vérifier si le PSR existe
-            Psr psr = psrRepository.findById(psrId)
-                    .orElseThrow(() -> new EntityNotFoundException("PSR not found with ID: " + psrId));
+        // 2. Récupérer UNIQUEMENT les données existantes pour ce PSR et cette semaine spécifique
+        // Vous aurez besoin d'une méthode dans votre repository pour cela.
+        List<TeamOrganization> weekSpecificData = teamOrganizationRepository.findByPsrIdAndWeek(psrId, week);
 
-            // 2. Récupérer tous les membres de l'équipe pour ce PSR
-            List<TeamOrganization> allTeamMembers = teamOrganizationRepository.findByPsrId(psrId);
-
-            // 3. Filtrer pour ne garder que les données de la semaine spécifiée
-            List<TeamOrganization> weekSpecificData = allTeamMembers.stream()
-                    .filter(member -> week.equals(member.getWeek()))
-                    .collect(Collectors.toList());
-
-            // 4. Si aucun membre n'a de données pour cette semaine, on récupère les membres de base
-            if (weekSpecificData.isEmpty()) {
-                List<TeamOrganizationDTO> baseMembers = getAllProjectMembersForPsr(psrId);
-
-                // 5. Pour chaque membre, on crée une entrée pour cette semaine
-                for (TeamOrganizationDTO member : baseMembers) {
-                    member.setWeek(week);
-                    member.setReportYear(Integer.parseInt(week.split("-")[0]));
-
-                    // 6. Sauvegarder les données pour cette semaine
-                    TeamOrganization entity = convertToEntity(member);
-                    entity.setPsr(psr);
-                    entity.setWeek(week);
-                    entity.setReportYear(Integer.parseInt(week.split("-")[0]));
-                    teamOrganizationRepository.save(entity);
-                }
-
-                return baseMembers;
-            }
-
-            // 7. Retourner les données filtrées pour cette semaine
-            return weekSpecificData.stream()
-                    .map(this::convertToDTO)
-                    .collect(Collectors.toList());
-        }
-
+        // 3. Retourner les données trouvées (la liste sera vide s'il n'y en a pas)
+        return weekSpecificData.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
 }

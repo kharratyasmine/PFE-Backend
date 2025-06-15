@@ -13,5 +13,6 @@ public interface WorkEntryService {
     WorkEntry createWorkEntry(WorkEntry workEntry);
     WorkEntry updateWorkEntry(Long id, WorkEntry workEntry);
     void deleteWorkEntry(Long id);
+
     WorkEntry getWorkEntryById(Long id);
 }

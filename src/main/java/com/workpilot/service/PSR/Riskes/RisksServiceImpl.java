@@ -31,7 +31,7 @@ public class RisksServiceImpl implements RisksService {
         Risks risk = convertToEntity(dto);
 
         risk.setPsr(psr);
-
+        risk.setWeek(psr.getWeek());
         Risks saved = risksRepository.save(risk);
         return convertToDTO(saved);
     }
@@ -144,7 +144,7 @@ public class RisksServiceImpl implements RisksService {
         existingRisk.setMitigationPlan(riskDTO.getMitigationPlan());
 
         existingRisk.setPsr(psr); // mise à jour du lien PSR
-
+        existingRisk.setWeek(psr.getWeek());
         Risks updated = risksRepository.save(existingRisk);
         return convertToDTO(updated);
     }

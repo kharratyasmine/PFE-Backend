@@ -1,11 +1,9 @@
 package com.workpilot.controller.GestionRessources;
 
-import com.workpilot.dto.GestionRessources.ProjectDTO;
-import com.workpilot.dto.GestionRessources.TeamAllocationDTO;
-import com.workpilot.dto.GestionRessources.TeamMemberAllocationDTO;
-import com.workpilot.dto.GestionRessources.TeamMemberDTO;
+import com.workpilot.dto.GestionRessources.*;
 import com.workpilot.entity.ressources.Project;
 import com.workpilot.repository.ressources.ProjectRepository;
+import com.workpilot.service.GestionRessources.demande.DemandeService;
 import com.workpilot.service.GestionRessources.project.ProjectService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +23,9 @@ public class ProjectController {
 
     @Autowired
     private ProjectRepository projectRepository;
+
+    @Autowired
+    private DemandeService demandeService;
 
     @GetMapping
     public ResponseEntity<List<ProjectDTO>> getAllProjects() {
@@ -61,13 +62,15 @@ public class ProjectController {
 
         try {
             Project savedProject = projectService.createProject(dto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(savedProject);
+            ProjectDTO projectDTO = projectService.convertToDTO(savedProject); // ✅ conversion en DTO
+            return ResponseEntity.status(HttpStatus.CREATED).body(projectDTO); // ✅ on retourne un DTO (propre)
         } catch (Exception e) {
             System.out.println("❌ Erreur lors de la création du projet: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
+
 
 
     @PutMapping("/{id}")
@@ -85,7 +88,7 @@ public class ProjectController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProject(@PathVariable Long id) {
         try {
-            projectService.deleteProject(id);
+            projectService.deleteProjectById(id);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
@@ -105,6 +108,11 @@ public class ProjectController {
     public ResponseEntity<List<TeamMemberAllocationDTO>> getProjectAllocations(@PathVariable Long id) {
         List<TeamMemberAllocationDTO> allocations = projectService.getAllocationsByProjectId(id);
         return ResponseEntity.ok(allocations);
+    }
+    @GetMapping("/{projectId}/demandes")
+    public ResponseEntity<List<DemandeDTO>> getDemandesByProject(@PathVariable Long projectId) {
+        List<DemandeDTO> demandes = demandeService.getDemandesByProject(projectId);
+        return ResponseEntity.ok(demandes);
     }
 
     @GetMapping("/{id}/team-allocations")

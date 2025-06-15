@@ -84,12 +84,14 @@ public class devisServiceImpl implements DevisService {
             existingDevis.getProject().setId(updatedDevisDTO.getProjectId());
         }
 
-        // ✅ Récupération de la demande liée
-        Demande demande = existingDevis.getDemande();
-        if (demande == null) {
-            throw new RuntimeException("La demande associée au devis est introuvable.");
+        // ✅ Mise à jour de la demande liée (si fournie dans le DTO)
+        if (updatedDevisDTO.getDemandeId() != null) {
+            Demande demande = demandeRepository.findById(updatedDevisDTO.getDemandeId())
+                    .orElseThrow(() -> new RuntimeException("Demande avec ID " + updatedDevisDTO.getDemandeId() + " introuvable."));
+            existingDevis.setDemande(demande);
+        } else {
+            throw new RuntimeException("Le champ demandeId est obligatoire pour mettre à jour un devis.");
         }
-
         // Mise à jour des champs simples
         if (updatedDevisDTO.getReference() != null)
             existingDevis.setReference(updatedDevisDTO.getReference());
@@ -122,6 +124,11 @@ public class devisServiceImpl implements DevisService {
         dto.setStatus(devis.getStatus());
         dto.setProposalValidity(devis.getProposalValidity());
         dto.setAuthor(devis.getAuthor());
+        // Partie demande
+        if (devis.getDemande() != null) {
+            dto.setDemandeId(devis.getDemande().getId());
+        }
+
 
         // Partie projet
         if (devis.getProject() != null) {
@@ -153,10 +160,10 @@ public class devisServiceImpl implements DevisService {
                             .workload(detail.getWorkload())
                             .dailyCost(detail.getDailyCost())
                             .totalCost(detail.getTotalCost())
+                            .devisId(detail.getDevis() != null ? detail.getDevis().getId() : null)
                             .build()
             ).collect(Collectors.toList()));
         }
-
         // Workload details
         if (devis.getWorkloadDetails() != null) {
             dto.setWorkloadDetails(devis.getWorkloadDetails().stream().map(workload ->
@@ -165,9 +172,16 @@ public class devisServiceImpl implements DevisService {
                             .period(workload.getPeriod())
                             .estimatedWorkload(workload.getEstimatedWorkload())
                             .publicHolidays(workload.getPublicHolidays())
+                            .publicHolidayDates(workload.getPublicHolidayDates())
+                            .numberOfResources(workload.getNumberOfResources())
+                            .totalEstimatedWorkload(workload.getTotalEstimatedWorkload())
+                            .totalWorkload(workload.getTotalWorkload())
+                            .note(workload.getNote())
+                            .devisId(workload.getDevis() != null ? workload.getDevis().getId() : null)
                             .build()
             ).collect(Collectors.toList()));
         }
+
 
         // Invoicing details
         if (devis.getInvoicingDetails() != null) {
@@ -177,6 +191,7 @@ public class devisServiceImpl implements DevisService {
                             .description(invoice.getDescription())
                             .invoicingDate(invoice.getInvoicingDate())
                             .amount(invoice.getAmount())
+                            .devisId(invoice.getDevis() != null ? invoice.getDevis().getId() : null)
                             .build()
             ).collect(Collectors.toList()));
         }

@@ -126,19 +126,19 @@ public class InvoicingDetailServiceImpl implements InvoicingDetailService {
 
     private String getMonthName(int month) {
         return switch (month) {
-            case 1 -> "janv";
-            case 2 -> "févr";
-            case 3 -> "mars";
-            case 4 -> "avril";
-            case 5 -> "mai";
-            case 6 -> "juin";
-            case 7 -> "juil";
-            case 8 -> "août";
-            case 9 -> "sept";
-            case 10 -> "oct";
-            case 11 -> "nov";
-            case 12 -> "déc";
-            default -> "inconnu";
+            case 1 -> "January";
+            case 2 -> "February";
+            case 3 -> "March";
+            case 4 -> "April";
+            case 5 -> "May";
+            case 6 -> "June";
+            case 7 -> "July";
+            case 8 -> "August";
+            case 9 -> "September";
+            case 10 -> "October";
+            case 11 -> "November";
+            case 12 -> "December";
+            default -> "Unknown";
         };
     }
 

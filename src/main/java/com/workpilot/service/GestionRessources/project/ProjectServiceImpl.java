@@ -4,7 +4,10 @@ import com.workpilot.dto.GestionRessources.*;
 import com.workpilot.entity.PSR.TeamOrganization;
 import com.workpilot.entity.devis.Devis;
 import com.workpilot.entity.ressources.*;
+import com.workpilot.repository.Psr.PsrRepository;
+import com.workpilot.repository.Psr.TaskTrackerRepository;
 import com.workpilot.repository.Psr.TeamOrganizationRepository;
+import com.workpilot.repository.Psr.WeeklyReportRepository;
 import com.workpilot.repository.devis.DevisRepository;
 import com.workpilot.repository.devis.FinancialDetailRepository;
 import com.workpilot.repository.devis.InvoicingDetailRepository;
@@ -15,9 +18,7 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -60,6 +61,9 @@ public class ProjectServiceImpl implements ProjectService {
     private WorkEntryRepository workEntryRepository;
 
     @Autowired
+    private PsrRepository psrRepository;
+
+    @Autowired
     private DevisRepository devisRepository;
     @Autowired
     private FinancialDetailRepository financialDetailRepository;
@@ -69,6 +73,13 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Autowired
     private PlannedWorkloadMemberRepository plannedWorkloadMemberRepository;
+
+    @Autowired
+    private WeeklyReportRepository weeklyReportRepository;
+
+    @Autowired
+    private TaskTrackerRepository taskTrackerRepository;
+
     @Override
     public Project createProject(ProjectDTO dto) {
         Project project = new Project();
@@ -145,91 +156,40 @@ public class ProjectServiceImpl implements ProjectService {
                 .orElseThrow(() -> new EntityNotFoundException("Projet introuvable : " + id));
     }
 
-
-
+    @Override
     @Transactional
-    public void deleteProject(Long id) {
-        /*try {
-            Project project = projectRepository.findById(id)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Projet non trouvé"));
+    public void deleteProjectById(Long projectId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new EntityNotFoundException("Projet introuvable avec ID: " + projectId));
 
-            System.out.println("Début de la suppression du projet: " + id);
+        // 🔁 Dissocier les ManyToMany
+        project.getTeams().clear();
 
-            // 1. Désactiver temporairement les contraintes de clé étrangère
-            entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate();
+        // 1️⃣ Supprimer les PlannedWorkloadMember
+        plannedWorkloadMemberRepository.deleteByProjectId(projectId);
 
-            // 2. Supprimer les entrées de travail
-            workEntryRepository.deleteByProjectId(id);
-            System.out.println("✅ Entrées de travail supprimées");
+        // 2️⃣ Supprimer les TaskTracker liés aux PSR
+        taskTrackerRepository.deleteByProjectId(projectId);
 
-            // 3. Supprimer les tâches
-            projectTaskRepository.deleteByProjectId(id);
-            System.out.println("✅ Tâches supprimées");
+        // 3️⃣ Supprimer les WeeklyReport liés aux PSR
+        weeklyReportRepository.deleteByProjectId(projectId);
 
-            // 4. Supprimer les allocations
-            teamMemberAllocationRepository.deleteByProjectId(id);
-            System.out.println("✅ Allocations supprimées");
+        // 4️⃣ Supprimer les PSR
+        psrRepository.deleteByProjectId(projectId);
 
-            // 5. Supprimer les plannings
-            plannedWorkloadMemberRepository.deleteByProjectId(id);
-            System.out.println("✅ Plannings supprimés");
-
-            // 6. Supprimer les organisations d'équipe PSR
-            teamOrganizationRepository.deleteByPsrProjectId(id);
-            System.out.println("✅ Organisations d'équipe supprimées");
-
-            // 7. Gérer les devis et leurs détails (nouvelle approche)
-            deleteAllDevisForProject(id);
-
-            // 8. Supprimer les demandes
-            demandeRepository.deleteByProjectId(id);
-            System.out.println("✅ Demandes supprimées");
-
-            // 9. Gérer les relations avec les équipes
-            for (Team team : project.getTeams()) {
-                team.getProjects().remove(project);
-                teamRepository.save(team);
+        // 5️⃣ Supprimer les Devis liés AVANT
+        if (project.getDevisList() != null && !project.getDevisList().isEmpty()) {
+            for (Devis devis : project.getDevisList()) {
+                devisRepository.delete(devis);
             }
-            System.out.println("✅ Relations avec les équipes supprimées");
-
-            // 10. Réactiver les contraintes
-            entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate();
-
-            // 11. Supprimer le projet
-            projectRepository.delete(project);
-            System.out.println("✅ Projet supprimé avec succès");
-
-        } catch (Exception e) {
-            // Réactiver les contraintes en cas d'erreur
-            entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate();
-            System.err.println("❌ Erreur lors de la suppression du projet: " + e.getMessage());
-            e.printStackTrace();
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Erreur lors de la suppression du projet: " + e.getMessage());
         }
+
+        // 6️⃣ Supprimer le Project
+        projectRepository.delete(project);
     }
 
-    private void deleteAllDevisForProject(Long projectId) {
-        List<Devis> devisList = devisRepository.findByProjectId(projectId); // sans fetch multiple
 
-        for (Devis devis : devisList) {
-            Long devisId = devis.getId();
 
-            entityManager.createNativeQuery("DELETE FROM workload_detail WHERE devis_id = ?")
-                    .setParameter(1, devisId).executeUpdate();
-
-            entityManager.createNativeQuery("DELETE FROM financial_detail WHERE devis_id = ?")
-                    .setParameter(1, devisId).executeUpdate();
-
-            entityManager.createNativeQuery("DELETE FROM invoicing_detail WHERE devis_id = ?")
-                    .setParameter(1, devisId).executeUpdate();
-
-            entityManager.createNativeQuery("DELETE FROM devis WHERE id = ?")
-                    .setParameter(1, devisId)
-                    .executeUpdate();
-
-        }*/
-    }
 
     public ProjectDTO convertToDTO(Project project) {
         ProjectDTO dto = new ProjectDTO();

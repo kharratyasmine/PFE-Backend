@@ -36,7 +36,7 @@ public class WorkEntry {
     private LocalDate date;
 
     @Column(nullable = false)
-    private String status; // 'full', 'half', 'leave', 'none'
+    private Double status;
 
     private String comment;
 

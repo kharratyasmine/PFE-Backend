@@ -3,6 +3,7 @@ package com.workpilot.service.GestionRessources.tache;
 import com.workpilot.dto.GestionRessources.ProjectTaskDTO;
 import com.workpilot.dto.GestionRessources.TaskAssignmentDTO;
 import com.workpilot.entity.ressources.*;
+import com.workpilot.repository.Psr.TaskTrackerRepository;
 import com.workpilot.repository.ressources.*;
 import com.workpilot.service.PublicHolidayService;
 import jakarta.persistence.EntityNotFoundException;
@@ -27,6 +28,8 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
     private final TaskAssignmentRepository assignmentRepository;
     private final PublicHolidayService publicHolidayService;
     private final WorkEntryRepository workEntryRepository;
+    private final TaskTrackerRepository taskTrackerRepository;
+
 
     @Override
     public ProjectTaskDTO createTache(ProjectTaskDTO dto) {
@@ -52,58 +55,69 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
                 assignment.setTask(savedTask);
                 assignment.setTeamMember(member);
                 assignment.setProgress((int) Math.min(assignDTO.getProgress(), 100.0));
+                assignment.setWorkedMD(assignDTO.getWorkedMD());
 
-                // 🔍 Calcul à partir des dates effectives
-                LocalDate start = assignDTO.getEffectiveStartDate() != null ? assignDTO.getEffectiveStartDate() : assignDTO.getEstimatedStartDate();
-                LocalDate end = assignDTO.getEffectiveEndDate() != null ? assignDTO.getEffectiveEndDate() : assignDTO.getEstimatedEndDate();
+                // Dates estimées
+                assignment.setEstimatedStartDate(assignDTO.getEstimatedStartDate());
+                assignment.setEstimatedEndDate(assignDTO.getEstimatedEndDate());
 
-                Set<LocalDate> publicHolidays = publicHolidayService.getAllCombinedHolidaysBetween(start, end);
-                double workedMD = 0.0;
-                List<String> personalHolidays = new ArrayList<>();
+                // Dates effectives si fournies
+                assignment.setEffectiveStartDate(assignDTO.getEffectiveStartDate());
+                assignment.setEffectiveEndDate(assignDTO.getEffectiveEndDate());
 
-                if (start != null && end != null && !start.isAfter(end)) {
-                    for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                        DayOfWeek day = date.getDayOfWeek();
-                        boolean isWeekend = day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;
-                        boolean isHoliday = publicHolidays.contains(date);
-                        boolean workedThisDay = assignDTO.getWorkedDaysList() != null && assignDTO.getWorkedDaysList().contains(date);
+                // Jours fériés publics
+                Set<LocalDate> publicHolidays = publicHolidayService.getAllCombinedHolidaysBetween(
+                        assignDTO.getEstimatedStartDate(), assignDTO.getEstimatedEndDate()
+                );
 
-                        if (!isWeekend) {
-                            if (isHoliday) {
-                                // Ne pas enregistrer
-                            } else if (workedThisDay) {
-                                workedMD += 1.0;
-                            } else {
+                // Estimation automatique des MD
+                double estimatedMD = calculateWorkedDays(
+                        assignDTO.getEstimatedStartDate(),
+                        assignDTO.getEstimatedEndDate(),
+                        publicHolidays
+                );
+                assignment.setEstimatedMD(estimatedMD);
+                double remaining = estimatedMD - assignDTO.getWorkedMD();
+                assignment.setRemainingMD(remaining);
+
+                // 🔍 Logique optionnelle : jours personnels non travaillés
+                if (assignDTO.getWorkedDaysList() != null) {
+                    LocalDate start = assignDTO.getEffectiveStartDate() != null ? assignDTO.getEffectiveStartDate() : assignDTO.getEstimatedStartDate();
+                    LocalDate end = assignDTO.getEffectiveEndDate() != null ? assignDTO.getEffectiveEndDate() : assignDTO.getEstimatedEndDate();
+
+                    List<String> personalHolidays = new ArrayList<>();
+
+                    if (start != null && end != null && !start.isAfter(end)) {
+                        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                            DayOfWeek day = date.getDayOfWeek();
+                            boolean isWeekend = day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;
+                            boolean isHoliday = publicHolidays.contains(date);
+                            boolean workedThisDay = assignDTO.getWorkedDaysList().contains(date);
+
+                            if (!isWeekend && !isHoliday && !workedThisDay) {
                                 personalHolidays.add(date.toString());
                             }
+                        }
+
+                        // Ajout aux jours personnels du membre
+                        if (!personalHolidays.isEmpty()) {
+                            if (member.getHoliday() == null) member.setHoliday(new ArrayList<>());
+                            Set<String> existing = new HashSet<>(member.getHoliday());
+                            existing.addAll(personalHolidays);
+                            member.setHoliday(new ArrayList<>(existing));
                         }
                     }
                 }
 
-                double estimatedMD = calculateWorkedDays(assignDTO.getEstimatedStartDate(), assignDTO.getEstimatedEndDate(), publicHolidays);
-
-                assignment.setEstimatedMD(estimatedMD);
-                assignment.setWorkedMD(workedMD);
-                assignment.setRemainingMD(Math.max(0, estimatedMD - workedMD));
-                assignment.setEstimatedStartDate(assignDTO.getEstimatedStartDate());
-                assignment.setEstimatedEndDate(assignDTO.getEstimatedEndDate());
-                assignment.setEffectiveStartDate(assignDTO.getEffectiveStartDate());
-                assignment.setEffectiveEndDate(assignDTO.getEffectiveEndDate());
-
-                if (member.getHoliday() == null) member.setHoliday(new ArrayList<>());
-                Set<String> existing = new HashSet<>(member.getHoliday());
-                existing.addAll(personalHolidays);
-                member.setHoliday(new ArrayList<>(existing));
-
+                // 🔁 Éviter doublons d’assignation
                 Optional<TaskAssignment> existingTask = assignmentRepository
                         .findByTaskIdAndTeamMemberId(savedTask.getId(), member.getId());
 
                 if (existingTask.isEmpty()) {
                     assignmentRepository.save(assignment);
                 } else {
-                    System.out.println("⚠️ Assignment déjà existant pour ce membre dans cette tâche");
+                    System.out.println("⚠️ Assignation déjà existante pour ce membre.");
                 }
-
             }
         }
 
@@ -112,81 +126,70 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
 
     @Override
     public ProjectTaskDTO updateTache(Long id, ProjectTaskDTO dto) {
-        ProjectTask task = taskRepository.findById(id).orElseThrow();
+        ProjectTask task = taskRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Tâche non trouvée"));
+
         task.setName(dto.getName());
         task.setDescription(dto.getDescription());
         task.setDateDebut(dto.getDateDebut());
         task.setDateFin(dto.getDateFin());
         task.setStatus(dto.getStatus());
+
         taskRepository.save(task);
 
-        Map<Long, TaskAssignmentDTO> memberAssignments = new HashMap<>();
-        if (dto.getAssignments() != null) {
-            for (TaskAssignmentDTO assignDTO : dto.getAssignments()) {
-                memberAssignments.put(assignDTO.getTeamMemberId(), assignDTO);
-            }
-        }
-
+        // Supprimer les anciennes affectations de cette tâche
         assignmentRepository.deleteByTaskId(id);
 
-        for (TaskAssignmentDTO assignDTO : memberAssignments.values()) {
-            TeamMember member = teamMemberRepository.findById(assignDTO.getTeamMemberId()).orElseThrow();
+        if (dto.getAssignments() != null) {
+            for (TaskAssignmentDTO assignDTO : dto.getAssignments()) {
+                TeamMember member = teamMemberRepository.findById(assignDTO.getTeamMemberId())
+                        .orElseThrow(() -> new EntityNotFoundException("Membre introuvable"));
 
-            TaskAssignment assignment = new TaskAssignment();
-            assignment.setTask(task);
-            assignment.setTeamMember(member);
-            assignment.setProgress((int) Math.min(assignDTO.getProgress(), 100.0));
+                TaskAssignment assignment = new TaskAssignment();
+                assignment.setTask(task);
+                assignment.setTeamMember(member);
+                assignment.setProgress((int) Math.min(assignDTO.getProgress(), 100.0));
+                assignment.setWorkedMD(assignDTO.getWorkedMD());
 
-            LocalDate start = assignDTO.getEffectiveStartDate() != null ? assignDTO.getEffectiveStartDate() : assignDTO.getEstimatedStartDate();
-            LocalDate end = assignDTO.getEffectiveEndDate() != null ? assignDTO.getEffectiveEndDate() : assignDTO.getEstimatedEndDate();
+                assignment.setEstimatedStartDate(assignDTO.getEstimatedStartDate());
+                assignment.setEstimatedEndDate(assignDTO.getEstimatedEndDate());
+                assignment.setEffectiveStartDate(assignDTO.getEffectiveStartDate());
+                assignment.setEffectiveEndDate(assignDTO.getEffectiveEndDate());
 
-            Set<LocalDate> publicHolidays = publicHolidayService.getAllCombinedHolidaysBetween(start, end);
-            double workedMD = 0.0;
-            List<String> personalHolidays = new ArrayList<>();
+                // 🔍 Calcul des jours fériés pour l'intervalle
+                LocalDate start = assignment.getEffectiveStartDate() != null ? assignment.getEffectiveStartDate() : assignment.getEstimatedStartDate();
+                LocalDate end = assignment.getEffectiveEndDate() != null ? assignment.getEffectiveEndDate() : assignment.getEstimatedEndDate();
 
-            if (start != null && end != null && !start.isAfter(end)) {
-                for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                    DayOfWeek day = date.getDayOfWeek();
-                    boolean isWeekend = day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;
-                    boolean isHoliday = publicHolidays.contains(date);
-                    boolean workedThisDay = assignDTO.getWorkedDaysList() != null && assignDTO.getWorkedDaysList().contains(date);
+                Set<LocalDate> publicHolidays = publicHolidayService.getAllCombinedHolidaysBetween(start, end);
+                double estimatedMD = calculateWorkedDays(assignment.getEstimatedStartDate(), assignment.getEstimatedEndDate(), publicHolidays);
+                assignment.setEstimatedMD(estimatedMD);
+                double remaining = estimatedMD - assignDTO.getWorkedMD();
+                assignment.setRemainingMD(remaining);
 
-                    if (!isWeekend) {
-                        if (isHoliday) {
-                            // skip
-                        } else if (workedThisDay) {
-                            workedMD += 1.0;
-                        } else {
+                // 🧠 Logique complémentaire de jours personnels non travaillés
+                if (assignDTO.getWorkedDaysList() != null && start != null && end != null && !start.isAfter(end)) {
+                    List<String> personalHolidays = new ArrayList<>();
+                    for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                        boolean isWeekend = date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
+                        boolean isHoliday = publicHolidays.contains(date);
+                        boolean workedThisDay = assignDTO.getWorkedDaysList().contains(date);
+
+                        if (!isWeekend && !isHoliday && !workedThisDay) {
                             personalHolidays.add(date.toString());
                         }
                     }
+
+                    // Fusion intelligente avec les congés existants
+                    if (!personalHolidays.isEmpty()) {
+                        if (member.getHoliday() == null) member.setHoliday(new ArrayList<>());
+                        Set<String> existing = new HashSet<>(member.getHoliday());
+                        existing.addAll(personalHolidays);
+                        member.setHoliday(new ArrayList<>(existing));
+                    }
                 }
-            }
 
-            double estimatedMD = calculateWorkedDays(assignDTO.getEstimatedStartDate(), assignDTO.getEstimatedEndDate(), publicHolidays);
-
-            assignment.setEstimatedMD(estimatedMD);
-            assignment.setWorkedMD(workedMD);
-            assignment.setRemainingMD(Math.max(0, estimatedMD - workedMD));
-            assignment.setEstimatedStartDate(assignDTO.getEstimatedStartDate());
-            assignment.setEstimatedEndDate(assignDTO.getEstimatedEndDate());
-            assignment.setEffectiveStartDate(assignDTO.getEffectiveStartDate());
-            assignment.setEffectiveEndDate(assignDTO.getEffectiveEndDate());
-
-            if (member.getHoliday() == null) member.setHoliday(new ArrayList<>());
-            Set<String> existing = new HashSet<>(member.getHoliday());
-            existing.addAll(personalHolidays);
-            member.setHoliday(new ArrayList<>(existing));
-
-            Optional<TaskAssignment> existingTask = assignmentRepository
-                    .findByTaskIdAndTeamMemberId(task.getId(), member.getId());
-
-            if (existingTask.isEmpty()) {
                 assignmentRepository.save(assignment);
-            } else {
-                System.out.println("⚠️ Assignment déjà existant pour ce membre dans cette tâche");
             }
-
         }
 
         return getTacheById(id);
@@ -213,11 +216,13 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
     }
 
     @Override
+    @Transactional
     public void deleteTache(Long id) {
         assignmentRepository.deleteByTaskId(id);
         workEntryRepository.deleteByTaskId(id);
         taskRepository.deleteById(id);
     }
+
 
     @Override
     public List<ProjectTaskDTO> getAllTasks() {
@@ -259,6 +264,26 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
         );
     }
 
+    @Transactional
+    public void processWorkEntryAsHoliday(WorkEntry workEntry) {
+        if (workEntry.getStatus() >= 1.0) return;
+
+        TeamMember member = teamMemberRepository.findById(workEntry.getMemberId())
+                .orElseThrow(() -> new RuntimeException("Membre non trouvé"));
+
+        if (member.getHoliday() == null) {
+            member.setHoliday(new ArrayList<>());
+        }
+
+        String entry = workEntry.getDate() + "|" + getLabel(workEntry.getStatus());
+        member.getHoliday().removeIf(e -> e.startsWith(workEntry.getDate() + "|"));
+        member.getHoliday().add(entry);
+
+        teamMemberRepository.save(member); // ← NE PAS OUBLIER CETTE LIGNE
+
+        System.out.println("✅ Congé enregistré : " + entry);
+    }
+
     private long calculateWorkedDays(LocalDate start, LocalDate end, Set<LocalDate> holidays) {
         if (start == null || end == null || start.isAfter(end)) return 0;
         long count = 0;
@@ -271,6 +296,14 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
         return count;
     }
 
+    private String getLabel(double status) {
+        if (status == 0.25) return "QUART";
+        if (status == 0.5) return "DEMI_JOURNEE";
+        if (status == 0.75) return "TROIS_QUARTS";
+        if (status == 0) return "CONGE_TOTAL";
+        return "PARTIEL";
+    }
+
     @Override
     @Transactional
     public void updateWorkedMD(Long taskId, Long assignmentId, double workedMD) {
@@ -281,8 +314,28 @@ public class ProjectTaskServiceImpl implements ProjectTaskService {
             throw new IllegalArgumentException("Task ID mismatch");
         }
 
+        // Récupérer les work entries pour cette assignation
+        List<WorkEntry> workEntries = workEntryRepository.findByTaskIdAndMemberId(
+                taskId,
+                assignment.getTeamMember().getId()
+        );
+
+        // Traiter chaque work entry comme un congé potentiel
+        workEntries.forEach(this::processWorkEntryAsHoliday);
+
         assignment.setWorkedMD(workedMD);
         assignment.setRemainingMD(assignment.getEstimatedMD() - workedMD);
         assignmentRepository.save(assignment);
+    }
+
+    // Méthode pour sauvegarder une work entry
+    @Transactional
+    public WorkEntry saveWorkEntry(WorkEntry workEntry) {
+        WorkEntry savedEntry = workEntryRepository.save(workEntry);
+
+        // Traiter automatiquement comme un congé si nécessaire
+        processWorkEntryAsHoliday(savedEntry);
+
+        return savedEntry;
     }
 }

@@ -54,6 +54,7 @@ public class User implements UserDetails {
     @OneToMany(mappedBy = "user")
     @JsonIgnore
     private List<Token> tokens;
+
     @Enumerated(EnumType.STRING)
     private ApprovalStatus approvalStatus; // PENDING, APPROVED, REJECTED
 

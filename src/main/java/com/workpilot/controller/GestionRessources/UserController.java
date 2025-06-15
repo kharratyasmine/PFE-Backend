@@ -30,9 +30,9 @@ public class UserController {
 
 
     private final UserService userService;
-@Autowired
+    @Autowired
     private  UserRepository userRepository;
-@Autowired
+    @Autowired
     private EmailService emailService;
 
     @Autowired
@@ -113,21 +113,34 @@ public class UserController {
 
 
     @PatchMapping("/{id}/approval")
-    @PreAuthorize("permitAll()")
+    @PreAuthorize("hasRole('ADMIN')")  // Seuls les admins peuvent approuver/refuser
     public ResponseEntity<?> approveUser(
             @PathVariable Long id,
             @RequestBody ApprovalRequest request) {
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé"));
+        Logger logger = LoggerFactory.getLogger(UserController.class);
+        logger.info("\n=== DÉBUT DU TRAITEMENT D'APPROBATION ===");
+        logger.info("ID utilisateur: {}", id);
+        logger.info("Requête reçue: {}", request);
 
-        if (request.isApproved()) {
-            user.setApprovalStatus(ApprovalStatus.APPROVED);
-            user.setRejectionReason(null);
+        try {
+            User user = userRepository.findById(id)
 
-            // ✅ Mail avec lien vers le login Angular
-            String loginUrl = "http://localhost:4200/login";
-            String content = """
+                    .orElseThrow(() -> {
+                        logger.error("❌ Utilisateur non trouvé pour l'ID: {}", id);
+                        return new RuntimeException("Utilisateur non trouvé");
+                    });
+
+            logger.info("✅ Utilisateur trouvé: {}", user.getEmail());
+            logger.info("Statut actuel: {}", user.getApprovalStatus());
+
+            if (request.isApproved()) {
+                logger.info("🔄 Passage du statut à APPROVED");
+                user.setApprovalStatus(ApprovalStatus.APPROVED);
+                user.setRejectionReason(null);
+
+                String loginUrl = "http://localhost:4200/login";
+                String content = """
     <div style='font-family:Arial, sans-serif;'>
       <h2 style='color:#2ecc71;'>🎉 Votre compte a été validé</h2>
       <p>Bonjour %s,</p>
@@ -144,38 +157,51 @@ public class UserController {
         </a>
       </p>
       <br/>
-      <p style='color:#7f8c8d;'>Cordialement,<br/>L’équipe WorkLPilot</p>
+      <p style='color:#7f8c8d;'>Cordialement,<br/>L'équipe WorkLPilot</p>
     </div>
 """.formatted(user.getFirstname(), loginUrl);
 
-            emailService.send(user.getEmail(), "✅ Votre compte est activé", content);
+                emailService.send(user.getEmail(), "✅ Votre compte est activé", content);
+                logger.info("✉️ Email d'approbation envoyé à {}", user.getEmail());
 
+            } else {
+                logger.info("🔄 Passage du statut à REJECTED");
+                user.setApprovalStatus(ApprovalStatus.REJECTED);
+                user.setRejectionReason(request.getReason());
+                logger.info("Raison du rejet: {}", request.getReason());
 
-        } else {
-            user.setApprovalStatus(ApprovalStatus.REJECTED);
-            user.setRejectionReason(request.getReason());
-
-            // ❌ Mail de refus sans lien
-            String content = """
+                String content = """
     <div style='font-family:Arial, sans-serif;'>
       <h2 style='color:#e74c3c;'>❌ Demande refusée</h2>
       <p>Bonjour %s,</p>
       <p>Nous sommes désolés, votre demande d'inscription a été refusée.</p>
       <p><strong>Raison :</strong> %s</p>
-      <p style='color:#7f8c8d;'>Cordialement,<br/>L’équipe WorkLPilot</p>
+      <p style='color:#7f8c8d;'>Cordialement,<br/>L'équipe WorkLPilot</p>
     </div>
 """.formatted(user.getFirstname(), request.getReason());
 
-            emailService.send(user.getEmail(), "❌ Demande refusée", content);
+                emailService.send(user.getEmail(), "❌ Demande refusée", content);
+                logger.info("✉️ Email de rejet envoyé à {}", user.getEmail());
+            }
 
+            logger.info("Tentative de sauvegarde de l'utilisateur...");
+            User savedUser = userRepository.save(user);
+            logger.info("✅ Utilisateur sauvegardé avec succès. Nouveau statut: {}", savedUser.getApprovalStatus());
+
+            // Vérification après sauvegarde
+            User verifyUser = userRepository.findById(id).orElse(null);
+            logger.info("Vérification après sauvegarde - Statut: {}", verifyUser != null ? verifyUser.getApprovalStatus() : "Utilisateur non trouvé");
+
+            logger.info("=== FIN DU TRAITEMENT D'APPROBATION ===\n");
+            return ResponseEntity.ok().build();
+
+        } catch (Exception e) {
+            logger.error("❌ ERREUR CRITIQUE: {}", e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erreur lors du traitement: " + e.getMessage());
         }
-
-        userRepository.save(user);
-        return ResponseEntity.ok().build();
     }
-
-
-
 
     @GetMapping("/test")
     public String test() {

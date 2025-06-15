@@ -25,5 +25,7 @@ public interface TeamMemberRepository extends JpaRepository<TeamMember, Long> {
 
     Optional<TeamMember> findByRoleAndFake(String role, boolean fake);
 
+    // Ajoutez cette ligne pour permettre la recherche d'un TeamMember par son nom complet
+    Optional<TeamMember> findByName(String name);
 
 }

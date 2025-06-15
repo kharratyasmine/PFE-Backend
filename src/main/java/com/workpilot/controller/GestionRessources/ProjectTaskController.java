@@ -46,7 +46,7 @@ public class ProjectTaskController {
     public ResponseEntity<?> deleteTask(@PathVariable Long id) {
         try {
             taskService.deleteTache(id);
-            return ResponseEntity.ok("Tâche supprimée avec succès");
+            return ResponseEntity.noContent().build();  // ✅ 204 No Content
         } catch (DataIntegrityViolationException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Impossible de supprimer la tâche : elle est liée à d'autres entités.");
         } catch (Exception e) {

@@ -2,18 +2,24 @@ package com.workpilot.dto.PsrDTO;
 
 import lombok.*;
 
-@Getter
-@Setter
+import java.util.HashMap;
+import java.util.Map;
+
+@Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class WeeklyReportDTO {
     private Long id;
-    private Long psrId;
+    private String month;
+    private int weekNumber;
+    private int year;
     private String projectName;
     private Double workingDays;
     private Double estimatedDays;
     private Double effortVariance;
+    private Long psrId;
     private String week;
-    private Integer reportYear;
+    private Map<String, Double> effortVarianceByWeek = new HashMap<>();
+
 }

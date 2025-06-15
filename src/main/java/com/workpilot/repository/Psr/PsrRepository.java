@@ -14,4 +14,7 @@ public interface PsrRepository extends JpaRepository<Psr, Long> {
     boolean existsByProjectIdAndWeekAndReportYear(Long projectId, String week, int reportYear);
     List<Psr> findByProjectIdAndWeekBetween(Long projectId, String startWeek, String endWeek);
     List<Psr> findByProjectIdAndWeekLessThanEqual(Long projectId, String week);
+    List<Psr> findByProjectIdAndWeekAndReportYear(Long projectId, String week, int reportYear);
+    void deleteByProjectId(Long projectId);
+   // List<Psr> findByProjectIdAndReportYear(Long projectId, int year);
 }

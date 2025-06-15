@@ -21,6 +21,8 @@ public interface WorkEntryRepository extends JpaRepository<WorkEntry, Long> {
 
     List<WorkEntry> findByMemberIdAndTaskIdAndDate(Long memberId, Long taskId, LocalDate date);
 
+    List<WorkEntry> findByTaskIdAndMemberId(Long taskId, Long id);
+
    /* @Modifying
     @Transactional
     @Query("DELETE FROM TaskAssignment a WHERE a.task.id = :taskId")

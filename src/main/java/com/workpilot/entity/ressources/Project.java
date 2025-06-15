@@ -8,11 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
+import java.util.*;
 
 @Getter
 @Setter
@@ -41,31 +37,35 @@ public class Project {
     @Column(length = 500)
     private String description;
 
-    private String activity ;
+    private String activity;
     private String technologie;
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd") // ✅ Ajout format JSON
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate startDate;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd") // ✅ Ajout format JSON
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     private LocalDate endDate;
 
     @Enumerated(EnumType.STRING)
     private Status status;
 
+    // ✅ Suppression en cascade sur devis
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnoreProperties("projects")
+    @JsonIgnoreProperties("project")
     private List<Devis> devisList = new ArrayList<>();
 
+    // ✅ Référence vers l’utilisateur (non supprimé)
     @ManyToOne
     @JsonIgnore
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    // ✅ Référence vers client (non supprimé)
     @ManyToOne
     @JoinColumn(name = "client_id", nullable = false)
     private Client client;
 
-    @ManyToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE, CascadeType.REMOVE })
+    @ManyToMany(cascade = { CascadeType.PERSIST, CascadeType.MERGE })
     @JoinTable(
             name = "team_project",
             joinColumns = @JoinColumn(name = "project_id"),
@@ -73,13 +73,18 @@ public class Project {
     )
     private Set<Team> teams = new HashSet<>();
 
-
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    // ✅ Suppression automatique des demandes liées
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
-    private List<Demande> demandes;
+    private List<Demande> demandes = new ArrayList<>();
 
-    @OneToMany(mappedBy = "project")
-    private Set<TeamMemberAllocation> allocations;
+    // ✅ Suppression des allocations liées
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private Set<TeamMemberAllocation> allocations = new HashSet<>();
 
-
+    // ✅ Suppression des tâches liées
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<ProjectTask> tasks = new ArrayList<>();
 }

@@ -29,4 +29,7 @@ public class ProjectTask {
 
     @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TaskAssignment> assignments;
+
+
+
 }

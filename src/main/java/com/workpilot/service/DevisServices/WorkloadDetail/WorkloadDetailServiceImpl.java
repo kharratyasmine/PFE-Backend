@@ -115,7 +115,7 @@ public class WorkloadDetailServiceImpl implements WorkloadDetailService {
         while (!start.isAfter(end)) {
             LocalDate monthStart = start.withDayOfMonth(1);
             LocalDate monthEnd = start.withDayOfMonth(start.lengthOfMonth());
-            String key = start.getMonth().toString().substring(0, 3).toUpperCase() + " " + start.getYear();
+            String key = start.getMonth().toString().toUpperCase() + " " + start.getYear();
 
             LocalDate effectiveStart = start.isBefore(demande.getDateDebut()) ? demande.getDateDebut() : start;
             LocalDate effectiveEnd = monthEnd.isAfter(demande.getDateFin()) ? demande.getDateFin() : monthEnd;

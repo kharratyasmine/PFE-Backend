@@ -35,6 +35,7 @@ public class PsrDTO {
     private List<DeliveriesDTO> deliveries;
     private List<TeamOrganizationDTO> teamOrganizations;
     private List<TaskTrackerDTO> taskTrackers;
+    private List<WeeklyReportDTO> weeklyReports;
 
     @NotNull(message = "La semaine est obligatoire")
     private String week;
@@ -44,4 +45,5 @@ public class PsrDTO {
 
     @NotNull(message = "La date du rapport est obligatoire")
     private LocalDate reportDate;
+
 }

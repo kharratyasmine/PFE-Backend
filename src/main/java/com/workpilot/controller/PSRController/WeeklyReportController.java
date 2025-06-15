@@ -1,31 +1,34 @@
 package com.workpilot.controller.PSRController;
 
 import com.workpilot.dto.PsrDTO.WeeklyReportDTO;
-import com.workpilot.service.PSR.WeeklyReport.WeeklyReportService;
+import com.workpilot.service.PSR.weeklyReport.WeeklyReportService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/weekly-reports")
+@RequestMapping("/api/weekly-reports")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:4200")
 public class WeeklyReportController {
 
-    private final WeeklyReportService weeklyReportService;
+    private final WeeklyReportService reportService;
 
-    // ✅ Endpoint GET bien défini pour récupérer les rapports
-    @GetMapping("/psr/{psrId}/reports")
-    public ResponseEntity<List<WeeklyReportDTO>> getWeeklyReportsByPsr(@PathVariable Long psrId) {
-        List<WeeklyReportDTO> reports = weeklyReportService.findByPsrId(psrId);
-        return ResponseEntity.ok(reports);
+    @PostMapping("/generate/{psrId}")
+    public void generate(@PathVariable Long psrId) {
+        reportService.generateReportFromPsr(psrId);
     }
 
-    // ✅ Endpoint POST pour générer les rapports automatiquement
-    @PostMapping("/psr/{psrId}/generate")
-    public ResponseEntity<Void> generateWeekly(@PathVariable Long psrId) {
-        weeklyReportService.generateWeeklyReportsByPsr(psrId);
-        return ResponseEntity.ok().build();
+    @GetMapping
+    public List<WeeklyReportDTO> getWeeklyReports(
+            @RequestParam String month,
+            @RequestParam int year,
+            @RequestParam(required = false) Long psrId) {
+        if (psrId != null) {
+            return reportService.getReportsByMonthAndPsr(month, year, psrId);
+        } else {
+            return reportService.getReportsByMonth(month, year);
+        }
     }
 }

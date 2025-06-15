@@ -28,4 +28,8 @@ public interface PsrService {
     List<PsrDTO> getPsrsByWeekRange(Long projectId, String startWeek, String endWeek);
 
     List<PsrDTO> getHistoricalPsrs(Long projectId, String week);
+
+    List<PsrDTO> getCurrentWeekPsrs(Long projectId);
+
+    void autoGenerateWeeklyPsrsForAllProjects();
 }

@@ -13,9 +13,10 @@ public class CorsConfiguration {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOriginPatterns("http://localhost:*")
+                        .allowedOriginPatterns("http://localhost:4200/")
                         .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                        .allowedHeaders("*") // ✅ autorise tous les headers (ex: Authorization, Content-Type)
+                        .allowedHeaders("Authorization", "Content-Type", "Accept", "X-Requested-With")
+                        .exposedHeaders("Authorization")
                         .allowCredentials(true); // ✅ nécessaire si tu envoies des cookies ou des headers d'auth
             }
         };

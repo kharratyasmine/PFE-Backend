@@ -11,12 +11,14 @@ public interface ProjectService {
     Project  createProject(ProjectDTO dto);
     ProjectDTO  updateProject(Long id, ProjectDTO dto);
     Project getProjectById(Long id);
-    void deleteProject(Long id);
     List<ProjectDTO> GetAllProject();
     void assignTeamToProject(Long projectId, Long teamId);
     List<TeamMemberAllocationDTO> getAllocationsByProjectId(Long projectId);
     List<TeamAllocationDTO> getTeamAllocationsByProjectId(Long projectId);
     List<TeamMemberDTO> getMembersByProject(Long projectId);
+
+    void deleteProjectById(Long projectId);
+
     ProjectDTO convertToDTO(Project project);
     void removeTeamFromProject(Long projectId, Long teamId);
 }
